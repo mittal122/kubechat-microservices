@@ -1,4 +1,4 @@
-# 🚀 Chattining Application - Master Features Tracker
+# 🚀 KubeChat Microservices - Master Features Tracker
 
 Here is the single, unified master table containing every feature, optimization, and security patch we have built together chronologically!
 
@@ -48,5 +48,5 @@ Here is the single, unified master table containing every feature, optimization,
 | **9. Deployment** | Docker Compose | DevOps | Single `docker-compose up` spins up MongoDB, backend, and frontend. Backend connects via Docker DNS (`mongodb://mongo:27017`). |
 | **9. Deployment** | Nginx Reverse Proxy | Networking | Custom `nginx.conf` proxies `/api/` and `/socket.io/` to the backend container with WebSocket upgrade support, enabling SPA routing and same-origin API access. |
 | **9. Deployment** | Environment-Aware URLs | Architecture | `VITE_API_BASE` env var lets the frontend swap between `localhost:5000` (dev) and relative URLs (Docker) at build time. |
-| **9. Deployment** | Docker Hub Registry | DevOps | Production images pushed to Docker Hub as `mittal122/chattining-backend` and `mittal122/chattining-frontend`. Anyone can pull and run the full app. |
+| **9. Deployment** | Docker Hub Registry | DevOps | Production images pushed to Docker Hub as `mittal122/kubechat-microservices-backend` and `mittal122/kubechat-microservices-frontend`. Anyone can pull and run the full app. |
 

@@ -28,9 +28,9 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
-          tags: mittal122/chattining-backend:latest
-          cache-from: type=registry,ref=mittal122/chattining-backend:buildcache
-          cache-to: type=registry,ref=mittal122/chattining-backend:buildcache,mode=max
+          tags: mittal122/kubechat-microservices-backend:latest
+          cache-from: type=registry,ref=mittal122/kubechat-microservices-backend:buildcache
+          cache-to: type=registry,ref=mittal122/kubechat-microservices-backend:buildcache,mode=max
 
   build-and-push-frontend:
     runs-on: ubuntu-latest
@@ -53,6 +53,6 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
-          tags: mittal122/chattining-frontend:latest
-          cache-from: type=registry,ref=mittal122/chattining-frontend:buildcache
-          cache-to: type=registry,ref=mittal122/chattining-frontend:buildcache,mode=max
+          tags: mittal122/kubechat-microservices-frontend:latest
+          cache-from: type=registry,ref=mittal122/kubechat-microservices-frontend:buildcache
+          cache-to: type=registry,ref=mittal122/kubechat-microservices-frontend:buildcache,mode=max
