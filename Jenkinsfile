@@ -4,8 +4,8 @@ pipeline {
     environment {
         // These refer to the credential ID we will create in Jenkins
         DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
-        BACKEND_IMAGE = 'mittal122/chattining-backend'
-        FRONTEND_IMAGE = 'mittal122/chattining-frontend'
+        BACKEND_IMAGE = 'mittal122/kubechat-microservices-backend'
+        FRONTEND_IMAGE = 'mittal122/kubechat-microservices-frontend'
     }
 
     stages {
