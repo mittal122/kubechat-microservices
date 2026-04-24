@@ -144,7 +144,7 @@ const ChatPage = () => {
               <MessageSquare size={40} className="text-violet-400" />
             </div>
             <h1 className="text-4xl font-bold text-white mb-3 tracking-tight">
-              Chattining
+              KubeChat Microservices
             </h1>
             <p className="text-white/40 text-lg max-w-sm mb-8">
               Your conversations, beautifully focused.

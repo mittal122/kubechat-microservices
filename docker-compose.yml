@@ -7,7 +7,7 @@ services:
   # ── MongoDB Database ──
   mongo:
     image: mongo:7
-    container_name: chat-mongo
+    container_name: kubechat-mongo
     ports:
       - "27017:27017"
     volumes:
@@ -102,7 +102,7 @@ services:
   # ── React Frontend (Vite build → nginx) ──
   frontend:
     build: ./frontend
-    container_name: chat-frontend
+    container_name: kubechat-frontend
     ports:
       - "3000:80"
     depends_on:

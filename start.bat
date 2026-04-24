@@ -1,6 +1,6 @@
 @echo off
 echo =======================================
-echo    Starting Chattining Application
+echo    Starting KubeChat Microservices
 echo =======================================
 echo.
 

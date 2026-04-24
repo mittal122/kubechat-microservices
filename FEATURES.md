@@ -1,4 +1,4 @@
-# 🚀 Chattining Application - Master Features Tracker
+# 🚀 KubeChat Microservices - Master Features Tracker
 
 Here is the single, unified master table containing every feature, optimization, and security patch we have built together chronologically!
 
