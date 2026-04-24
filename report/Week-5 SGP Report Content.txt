@@ -1,0 +1,91 @@
+Weekly Report
+
+Project Details
+Project Title: RealtimeConnect: Full-Stack Scalable Chat Application with Kubernetes Orchestration
+Student Names and Roll No: Mittal M. Domadiya (D24CS122), Preet R. Dadhania (D24CS124)
+Project Mentor: Prof. Abhishek Patel
+Week Number: Week 5
+Reporting Period: As per SGP Week 5 schedule
+
+Weekly Objectives
+Objective 1:
+To secure socket connections using JWT validation during handshake.
+
+Objective 2:
+To support simultaneous user sessions from multiple devices.
+
+Objective 3:
+To implement real-time read and delivery state lifecycle.
+
+Tasks Completed
+Task 1:
+Implemented strict JWT authentication in socket handshake middleware.
+
+Task 2:
+Designed multi-device socket mapping to deliver events to all active sessions of a user.
+
+Task 3:
+Added endpoint for marking conversation messages as seen and emitting live messagesSeen events.
+
+Task 4:
+Upgraded message status model from boolean seen state to enum lifecycle: sent, delivered, seen.
+
+Task 5:
+Implemented instant delivered state when receiver is online at send time.
+
+Task 6:
+Implemented auto-delivery update for previously sent messages when receiver reconnects.
+
+Task 7:
+Enabled preview mode behavior so opening overlay does not automatically mark messages as seen.
+
+Work Progress
+Current Status:
+Approximately 62% of the project completed.
+
+Milestones Achieved:
+Socket handshake security completed.
+Multi-device event delivery implemented.
+Read receipt and delivery receipt events integrated.
+Three-stage status lifecycle model deployed.
+Auto-delivery on login enabled.
+Chat preview behavior aligned with modern chat UX.
+
+Challenges Faced
+Challenge 1:
+Keeping message status synchronized across many socket connections for the same user.
+
+Resolution:
+Introduced user-to-socket array mapping and broadcast updates to all active sessions.
+
+Challenge 2:
+Avoiding incorrect seen updates during chat preview interactions.
+
+Resolution:
+Separated preview and focus behavior so seen updates trigger only on explicit chat focus action.
+
+Learnings and Skills Acquired
+This week improved our expertise in secure WebSocket architecture, multi-session real-time communication, and state transition handling for production-style chat delivery and read receipts.
+
+Plan for Next Week
+Task 1:
+Build full React frontend chat interface.
+
+Task 2:
+Integrate typing, unread counters, and reconnect UI behaviors.
+
+Task 3:
+Implement duplicate message prevention and smooth message rendering.
+
+Remarks from Mentors
+Academic Mentor's Feedback:
+[To be filled by mentor]
+
+Student Signature:
+Mittal M. Domadiya
+
+Academic Mentor Sign:
+[To be signed]
+
+Out of 10 Marks:
+[To be filled]

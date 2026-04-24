@@ -1,20 +1,37 @@
-# 1️⃣ Base image
-FROM node:20-slim
-
-# 2️⃣ Working directory
+# ── Build stage: install production dependencies in isolation ──
+FROM node:20-slim AS deps
 WORKDIR /app
-
-# 3️⃣ Copy manifest files
 COPY package*.json ./
-
-# 4️⃣ Install production deps
 RUN npm ci --omit=dev
 
-# 5️⃣ Copy source code
+# ── Runtime stage: minimal attack surface ──
+FROM node:20-slim
+WORKDIR /app
+
+# Security: create and use a non-root user (CIS Docker Benchmark 4.1)
+RUN groupadd -r appuser && useradd -r -g appuser -s /bin/false appuser
+
+# Copy only production node_modules from build stage
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy application source
 COPY . .
 
-# 6️⃣ Expose the listening port
+# Remove files that should not exist in the production image
+RUN rm -rf tests/ .env .git .dockerignore .gitignore
+
+# Set ownership so the non-root user can read the app files
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Health check for container orchestrators (Docker Compose, ECS, K8s)
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \
+  CMD node -e "const http = require('http'); http.get('http://localhost:5000/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"
+
+# Expose the listening port
 EXPOSE 5000
 
-# 7️⃣ Startup command
+# Startup command
 CMD ["node", "server.js"]

@@ -1,0 +1,117 @@
+Weekly Report
+
+Project Details
+Project Title: RealtimeConnect: Full-Stack Scalable Chat Application with Kubernetes Orchestration
+Student Names and Roll No: Mittal M. Domadiya (D24CS122), Preet R. Dadhania (D24CS124)
+Project Mentor: Prof. Abhishek Patel
+Week Number: Week 8
+Reporting Period: As per SGP Week 8 schedule
+
+Weekly Objectives
+Objective 1:
+To complete production deployment readiness by integrating CI/CD automation and secure release workflow.
+
+Objective 2:
+To finalize deployment hardening with health checks, graceful shutdown, security headers, secret management, and runtime safety controls.
+
+Objective 3:
+To complete project coverage by integrating cloud-scale architecture practices and starting Flutter native client alignment with existing backend and socket services.
+
+Tasks Completed
+Task 1:
+Created backend Dockerfile with production dependency strategy and non-root execution readiness.
+
+Task 2:
+Created multi-stage frontend Dockerfile with Nginx serving, security header additions, and compression support.
+
+Task 3:
+Configured Docker Compose for local multi-service startup with backend, frontend, and MongoDB; also prepared production compose profile.
+
+Task 4:
+Implemented Nginx reverse proxy routing for API and socket endpoints with WebSocket upgrade support.
+
+Task 5:
+Added environment-aware frontend API configuration for development and containerized deployment modes.
+
+Task 6:
+Published container images to Docker Hub and adopted semantic image tagging with latest and commit SHA.
+
+Task 7:
+Integrated Redis Socket.IO adapter architecture for horizontal backend scaling and cross-instance event delivery.
+
+Task 8:
+Prepared Kubernetes autoscaling, ingress, sticky-session, and zero-downtime rollout strategy.
+
+Task 9:
+Implemented production CI/CD workflow with testing, build, vulnerability scan, image push, and deployment stages.
+
+Task 10:
+Integrated deep health endpoint and startup/readiness/liveness probes for reliable runtime behavior.
+
+Task 11:
+Implemented graceful shutdown flow for safe rolling updates and reduced request/message disruption.
+
+Task 12:
+Improved runtime security controls including CORS lockdown and secret-oriented deployment handling.
+
+Task 13:
+Started Flutter native client integration with provider-based state flow, socket connectivity, and secure token storage support.
+
+Work Progress
+Current Status:
+Approximately 100% of the planned project scope completed.
+
+Milestones Achieved:
+Frontend and backend containerization completed.
+Nginx reverse proxy routing completed.
+Docker Compose development and production setup prepared.
+Cloud-ready scaling architecture prepared with Redis adapter.
+Kubernetes HPA, ingress, and rollout strategy defined.
+Production CI/CD workflow established with scan and traceability.
+Health checks, graceful shutdown, and hardening controls integrated.
+Flutter client base alignment initiated with backend/socket ecosystem.
+
+Challenges Faced
+Challenge 1:
+Ensuring socket communication behaves correctly under horizontally scaled backend instances.
+
+Resolution:
+Adopted Redis pub-sub adapter design for cross-instance event propagation.
+
+Challenge 2:
+Balancing deployment speed with release quality and security checks.
+
+Resolution:
+Structured CI/CD stages in strict quality order and included vulnerability scanning before rollout.
+
+Challenge 3:
+Maintaining stability during rollout and restart cycles in real-time services.
+
+Resolution:
+Implemented deep health endpoints, Kubernetes probes, and graceful termination behavior.
+
+Learnings and Skills Acquired
+We learned end-to-end production delivery practices for real-time applications, including containerization, reverse proxying, cloud scaling, CI/CD automation, and deployment hardening. We also gained practical understanding of release traceability, health-driven orchestration, and secure runtime configuration management. This week also expanded our cross-platform skills by initiating Flutter native client integration with the existing backend architecture.
+
+Plan for Next Week
+Task 1:
+Prepare final demo walkthrough and consolidated evidence documentation.
+
+Task 2:
+Perform final end-to-end regression testing across web and Flutter client flows.
+
+Task 3:
+Compile viva notes, architecture summary, and project handover material.
+
+Remarks from Mentors
+Academic Mentor's Feedback:
+[To be filled by mentor]
+
+Student Signature:
+Mittal M. Domadiya
+
+Academic Mentor Sign:
+[To be signed]
+
+Out of 10 Marks:
+[To be filled]

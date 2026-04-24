@@ -1,0 +1,84 @@
+Weekly Report
+
+Project Details
+Project Title: RealtimeConnect: Full-Stack Scalable Chat Application with Kubernetes Orchestration
+Student Names and Roll No: Mittal M. Domadiya (D24CS122), Preet R. Dadhania (D24CS124)
+Project Mentor: Prof. Abhishek Patel
+Week Number: Week 4
+Reporting Period: As per SGP Week 4 schedule
+
+Weekly Objectives
+Objective 1:
+To establish a stable Socket.IO foundation for real-time messaging.
+
+Objective 2:
+To implement user presence updates and room-scoped typing indicators.
+
+Objective 3:
+To connect REST-based message persistence with instant socket delivery.
+
+Tasks Completed
+Task 1:
+Set up Socket.IO server integration with backend for live event communication.
+
+Task 2:
+Implemented online user tracking and broadcast logic for active users.
+
+Task 3:
+Added typing and stop-typing events scoped to specific conversation rooms.
+
+Task 4:
+Linked sendMessage REST endpoint to trigger real-time newMessage socket events after database write.
+
+Task 5:
+Validated event flow for sender and receiver synchronization during active chats.
+
+Work Progress
+Current Status:
+Approximately 50% of the project completed.
+
+Milestones Achieved:
+Socket server base implemented.
+Online user hub behavior completed.
+Conversation-room typing events added.
+REST plus socket hybrid message push enabled.
+Core real-time interaction validated.
+
+Challenges Faced
+Challenge 1:
+Preventing unnecessary event broadcasts that could create UI noise.
+
+Resolution:
+Restricted typing events to conversation-specific rooms rather than global broadcast.
+
+Challenge 2:
+Ensuring message event emits only after successful data persistence.
+
+Resolution:
+Enforced emit-after-save flow in controller logic.
+
+Learnings and Skills Acquired
+We gained strong hands-on experience in event-driven backend design, Socket.IO room architecture, and hybrid API plus WebSocket communication patterns required for real-time chat systems.
+
+Plan for Next Week
+Task 1:
+Harden socket layer with JWT-based handshake authentication.
+
+Task 2:
+Support multi-device connection mapping per user.
+
+Task 3:
+Implement read receipt workflow and seen update APIs.
+
+Remarks from Mentors
+Academic Mentor's Feedback:
+[To be filled by mentor]
+
+Student Signature:
+Mittal M. Domadiya
+
+Academic Mentor Sign:
+[To be signed]
+
+Out of 10 Marks:
+[To be filled]

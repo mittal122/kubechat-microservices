@@ -1,0 +1,47 @@
+name: flutter_chat_app
+description: "Chattining — A minimalist real-time chat application for Windows desktop."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management (≈ React Context)
+  provider: ^6.1.2
+
+  # HTTP Client (≈ Axios)
+  dio: ^5.4.0
+
+  # Socket.IO Client
+  socket_io_client: ^2.0.3+1
+
+  # Local storage for JWT tokens (≈ localStorage)
+  shared_preferences: ^2.2.2
+
+  # Typography
+  google_fonts: ^6.1.0
+
+  # Date/time formatting
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/images/logo.png"
+  min_sdk_android: 21
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/

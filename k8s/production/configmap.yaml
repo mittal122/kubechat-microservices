@@ -1,0 +1,17 @@
+# ─────────────────────────────────────────
+# ConfigMap: shared non-secret configuration
+# ─────────────────────────────────────────
+# NOTE: Per-service config (PORT, service URLs) is set
+# directly as env vars in each deployment yaml.
+# This configmap holds shared production settings.
+# ─────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chattining-config
+  namespace: chattining
+  labels:
+    app.kubernetes.io/name: chattining
+data:
+  NODE_ENV: "production"
+  CORS_ORIGIN: "https://chat.yourdomain.com"

@@ -1,0 +1,84 @@
+Weekly Report
+
+Project Details
+Project Title: RealtimeConnect: Full-Stack Scalable Chat Application with Kubernetes Orchestration
+Student Names and Roll No: Mittal M. Domadiya (D24CS122), Preet R. Dadhania (D24CS124)
+Project Mentor: Prof. Abhishek Patel
+Week Number: Week 1
+Reporting Period: As per SGP Week 1 schedule
+
+Weekly Objectives
+Objective 1:
+To establish the backend foundation for secure user authentication and authorization.
+
+Objective 2:
+To implement core security controls for login protection and token safety.
+
+Objective 3:
+To design robust middleware for validating users before allowing protected API access.
+
+Tasks Completed
+Task 1:
+Set up backend project structure with modular folders for controllers, models, routes, and middleware.
+
+Task 2:
+Implemented login security using rate limiting to prevent brute-force attacks on authentication endpoints.
+
+Task 3:
+Optimized JWT payloads by keeping only essential fields such as userId and email.
+
+Task 4:
+Developed secure authentication middleware to verify bearer tokens and fetch authenticated user data while excluding password fields.
+
+Task 5:
+Completed baseline authentication APIs and validated basic login and protected route flow.
+
+Work Progress
+Current Status:
+Approximately 15% of the project completed.
+
+Milestones Achieved:
+Backend structure initialized.
+Authentication APIs started.
+Login rate limiter integrated.
+JWT payload optimized for lightweight tokens.
+Secure auth middleware implemented.
+
+Challenges Faced
+Challenge 1:
+Designing a secure yet simple token strategy during initial architecture setup.
+
+Resolution:
+Defined minimal JWT payload and strict middleware verification policy for all protected routes.
+
+Challenge 2:
+Balancing login usability and security while adding rate limits.
+
+Resolution:
+Configured threshold and time window to block abuse without affecting normal users.
+
+Learnings and Skills Acquired
+This week improved our understanding of secure authentication design using Node.js, Express.js, and JWT. We learned practical backend security controls including login throttling, secure token parsing, and protected API middleware implementation.
+
+Plan for Next Week
+Task 1:
+Implement rotating token lifecycle using access and refresh tokens.
+
+Task 2:
+Add secure logout behavior by invalidating stored refresh tokens.
+
+Task 3:
+Start user discovery optimization using indexed search and pagination.
+
+Remarks from Mentors
+Academic Mentor's Feedback:
+[To be filled by mentor]
+
+Student Signature:
+Mittal M. Domadiya
+
+Academic Mentor Sign:
+[To be signed]
+
+Out of 10 Marks:
+[To be filled]

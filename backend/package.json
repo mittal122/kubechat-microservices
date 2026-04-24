@@ -1,7 +1,7 @@
 {
   "name": "backend",
-  "version": "1.0.0",
-  "description": "",
+  "version": "2.0.0",
+  "description": "Chattining Application Backend — Production Cloud-Ready",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -13,11 +13,13 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^4.22.1",
     "express-rate-limit": "^8.3.1",
+    "ioredis": "^5.4.1",
     "joi": "^18.0.2",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.3.0",

@@ -1,0 +1,81 @@
+# ─────────────────────────────────────────────────────────────
+# NGINX Ingress — Microservice Gateway Entry Point
+# ─────────────────────────────────────────────────────────────
+# Prerequisites:
+#   1. NGINX Ingress Controller installed in the cluster:
+#      kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/aws/deploy.yaml
+#
+#   2. cert-manager installed for auto TLS:
+#      kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.0/cert-manager.yaml
+#
+# Routing Logic (microservice architecture):
+#   /api/*       → gateway-service:5000  (API Gateway routes internally)
+#   /socket.io/* → gateway-service:5000  (WebSocket upgrade via gateway)
+#   /*           → frontend-service:80   (React SPA)
+#
+# The API Gateway handles internal routing to auth/user/chat
+# services via K8s DNS — the Ingress only needs to know about
+# the gateway and frontend.
+# ─────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chattining-ingress
+  namespace: chattining
+  labels:
+    app.kubernetes.io/name: chattining
+    app.kubernetes.io/component: ingress
+  annotations:
+    # ── WebSocket Support ──
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "gateway-service"
+
+    # ── Sticky Sessions (Cookie-based) ──
+    # Socket.IO requires the polling→WebSocket upgrade to hit the same pod
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/affinity-mode: "persistent"
+    nginx.ingress.kubernetes.io/session-cookie-name: "CHATTINING_STICKY"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "3600"
+    nginx.ingress.kubernetes.io/session-cookie-samesite: "Strict"
+    nginx.ingress.kubernetes.io/session-cookie-secure: "true"
+
+    # ── Request Limits ──
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+
+    # ── TLS via Let's Encrypt (requires cert-manager) ──
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - chat.yourdomain.com     # CHANGE THIS to your actual domain
+      secretName: chattining-tls
+  rules:
+    - host: chat.yourdomain.com   # CHANGE THIS to your actual domain
+      http:
+        paths:
+          # API routes → API Gateway (gateway routes internally)
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 5000
+          # Socket.IO WebSocket routes → API Gateway
+          - path: /socket.io
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 5000
+          # Frontend (catch-all — must be last)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-service
+                port:
+                  number: 80

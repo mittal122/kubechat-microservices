@@ -1,0 +1,256 @@
+# ─────────────────────────────────────────────────────────────
+# Chattining Application — Full CI/CD Pipeline (Microservices)
+# ─────────────────────────────────────────────────────────────
+# Pipeline: Test → Build (5 images) → Scan → Push (ECR + Docker Hub) → Deploy (EKS)
+#
+# Required GitHub Secrets:
+#   AWS_ACCESS_KEY_ID        - IAM user with ECR + EKS permissions
+#   AWS_SECRET_ACCESS_KEY    - IAM user secret
+#   AWS_ACCOUNT_ID           - 12-digit AWS account ID
+#   DOCKERHUB_USERNAME       - Docker Hub username
+#   DOCKERHUB_TOKEN          - Docker Hub access token
+# ─────────────────────────────────────────────────────────────
+
+name: CI/CD — Build, Scan, Deploy
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  AWS_REGION: ap-south-1
+  EKS_CLUSTER_NAME: chattining-cluster
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
+jobs:
+  # ════════════════════════════════════════
+  # Stage 1: Test all microservices
+  # ════════════════════════════════════════
+  test:
+    name: "🧪 Run Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Test Auth Service
+        working-directory: ./services/auth-service
+        run: |
+          npm ci
+          npm test --if-present
+        env:
+          JWT_SECRET: test_secret_for_ci
+
+      - name: Test User Service
+        working-directory: ./services/user-service
+        run: |
+          npm ci
+          npm test --if-present
+        env:
+          JWT_SECRET: test_secret_for_ci
+
+      - name: Test Chat Service
+        working-directory: ./services/chat-service
+        run: |
+          npm ci
+          npm test --if-present
+        env:
+          JWT_SECRET: test_secret_for_ci
+
+  # ════════════════════════════════════════
+  # Stage 2: Build + Scan + Push (Matrix)
+  # ════════════════════════════════════════
+  build:
+    name: "🐳 Build ${{ matrix.service }}"
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      matrix:
+        include:
+          - service: api-gateway
+            context: ./services/api-gateway
+            dockerhub: mittal122/chattining-gateway
+            ecr_repo: chattining-gateway
+          - service: auth-service
+            context: ./services/auth-service
+            dockerhub: mittal122/chattining-auth
+            ecr_repo: chattining-auth
+          - service: user-service
+            context: ./services/user-service
+            dockerhub: mittal122/chattining-user
+            ecr_repo: chattining-user
+          - service: chat-service
+            context: ./services/chat-service
+            dockerhub: mittal122/chattining-chat
+            ecr_repo: chattining-chat
+          - service: frontend
+            context: ./frontend
+            dockerhub: mittal122/chattining-frontend
+            ecr_repo: chattining-frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── AWS ECR Login ──
+      - name: Configure AWS credentials
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ── Docker Hub Login ──
+      - name: Login to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # ── Build and Push to BOTH registries ──
+      - name: Build and push ${{ matrix.service }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.context }}/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ matrix.ecr_repo }}:${{ github.sha }}
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ matrix.ecr_repo }}:latest
+            ${{ matrix.dockerhub }}:${{ github.sha }}
+            ${{ matrix.dockerhub }}:latest
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      # ── Vulnerability Scan ──
+      - name: Scan ${{ matrix.service }} (Docker Scout)
+        if: github.event_name != 'pull_request'
+        uses: docker/scout-action@v1
+        with:
+          command: cves
+          image: ${{ matrix.dockerhub }}:${{ github.sha }}
+          only-severities: critical,high
+          exit-code: false
+
+  # ════════════════════════════════════════
+  # Stage 3: Deploy to EKS
+  # ════════════════════════════════════════
+  deploy:
+    name: "🚀 Deploy to EKS"
+    needs: [build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig for EKS
+        run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+
+      - name: Deploy to Kubernetes
+        env:
+          ECR_PREFIX: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          SHA: ${{ github.sha }}
+        run: |
+          # Create namespace if it doesn't exist
+          kubectl apply -f k8s/production/namespace.yaml
+
+          # Apply shared config and secrets
+          kubectl apply -f k8s/production/configmap.yaml
+          # NOTE: secrets.yaml is a template — real secrets should be
+          # pre-created via kubectl or External Secrets Operator
+
+          # Update all image tags from :latest to the commit SHA
+          for FILE in k8s/production/gateway-deployment.yaml \
+                      k8s/production/auth-deployment.yaml \
+                      k8s/production/user-deployment.yaml \
+                      k8s/production/chat-deployment.yaml \
+                      k8s/production/frontend-deployment.yaml; do
+            sed -i "s|mittal122/chattining-gateway:latest|${ECR_PREFIX}/chattining-gateway:${SHA}|g" "$FILE"
+            sed -i "s|mittal122/chattining-auth:latest|${ECR_PREFIX}/chattining-auth:${SHA}|g" "$FILE"
+            sed -i "s|mittal122/chattining-user:latest|${ECR_PREFIX}/chattining-user:${SHA}|g" "$FILE"
+            sed -i "s|mittal122/chattining-chat:latest|${ECR_PREFIX}/chattining-chat:${SHA}|g" "$FILE"
+            sed -i "s|mittal122/chattining-frontend:latest|${ECR_PREFIX}/chattining-frontend:${SHA}|g" "$FILE"
+          done
+
+          # Apply infrastructure (order matters)
+          kubectl apply -f k8s/production/redis-deployment.yaml
+
+          # Apply microservice deployments
+          kubectl apply -f k8s/production/gateway-deployment.yaml
+          kubectl apply -f k8s/production/auth-deployment.yaml
+          kubectl apply -f k8s/production/user-deployment.yaml
+          kubectl apply -f k8s/production/chat-deployment.yaml
+
+          # Apply frontend
+          kubectl apply -f k8s/production/frontend-deployment.yaml
+          kubectl apply -f k8s/production/frontend-service.yaml
+          kubectl apply -f k8s/production/frontend-hpa.yaml
+
+          # Apply monitoring
+          kubectl apply -f k8s/production/prometheus-deployment.yaml
+          kubectl apply -f k8s/production/grafana-deployment.yaml
+
+          # Apply routing
+          kubectl apply -f k8s/production/ingress.yaml
+
+          # Wait for rollouts (timeout: 3 minutes each)
+          echo "⏳ Waiting for api-gateway rollout..."
+          kubectl rollout status deployment/api-gateway -n chattining --timeout=180s
+
+          echo "⏳ Waiting for auth-service rollout..."
+          kubectl rollout status deployment/auth-service -n chattining --timeout=180s
+
+          echo "⏳ Waiting for user-service rollout..."
+          kubectl rollout status deployment/user-service -n chattining --timeout=180s
+
+          echo "⏳ Waiting for chat-service rollout..."
+          kubectl rollout status deployment/chat-service -n chattining --timeout=180s
+
+          echo "⏳ Waiting for frontend rollout..."
+          kubectl rollout status deployment/frontend -n chattining --timeout=180s
+
+          echo "✅ All deployments complete!"
+
+      - name: Verify deployment health
+        run: |
+          echo "── Pod Status ──"
+          kubectl get pods -n chattining -o wide
+
+          echo ""
+          echo "── Service Endpoints ──"
+          kubectl get svc -n chattining
+
+          echo ""
+          echo "── HPA Status ──"
+          kubectl get hpa -n chattining
+
+          echo ""
+          echo "── Ingress Status ──"
+          kubectl get ingress -n chattining

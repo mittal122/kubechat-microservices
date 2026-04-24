@@ -1,0 +1,144 @@
+# ─────────────────────────────────────────
+# Prometheus — Self-Hosted Monitoring
+# ─────────────────────────────────────────
+# Cost: $0 (vs ~$30+/mo for managed alternatives)
+# Includes: ConfigMap for scrape config, PVC for retention
+# ─────────────────────────────────────────
+
+# ── Prometheus Scrape Config ──
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: chattining
+  labels:
+    app.kubernetes.io/name: chattining
+    app.kubernetes.io/component: prometheus
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      - job_name: "api-gateway"
+        static_configs:
+          - targets: ["gateway-service:5000"]
+        metrics_path: /metrics
+
+      - job_name: "auth-service"
+        static_configs:
+          - targets: ["auth-service:5001"]
+        metrics_path: /metrics
+
+      - job_name: "user-service"
+        static_configs:
+          - targets: ["user-service:5002"]
+        metrics_path: /metrics
+
+      - job_name: "chat-service"
+        static_configs:
+          - targets: ["chat-service:5003"]
+        metrics_path: /metrics
+---
+# ── Persistent Storage ──
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+  namespace: chattining
+  labels:
+    app.kubernetes.io/name: chattining
+    app.kubernetes.io/component: prometheus
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+# ── Prometheus Deployment ──
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: chattining
+  labels:
+    app.kubernetes.io/name: chattining
+    app.kubernetes.io/component: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+        app.kubernetes.io/name: chattining
+        app.kubernetes.io/component: prometheus
+    spec:
+      # Prometheus runs as nobody (65534) — needs volume ownership
+      securityContext:
+        fsGroup: 65534
+        runAsUser: 65534
+        runAsNonRoot: true
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.51.0
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=30d"
+            - "--web.enable-lifecycle"
+          ports:
+            - containerPort: 9090
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: data
+              mountPath: /prometheus
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 30
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: prometheus-data
+---
+# ── Prometheus Service (ClusterIP — accessed via port-forward or Ingress) ──
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-service
+  namespace: chattining
+  labels:
+    app.kubernetes.io/name: chattining
+    app.kubernetes.io/component: prometheus
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - protocol: TCP
+      port: 9090
+      targetPort: 9090

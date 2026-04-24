@@ -1,0 +1,9 @@
+# Added by code-review-graph
+.code-review-graph/
+node_modules/
+build/
+.dart_tool/
+dist/
+coverage/
+.idea/
+.vscode/

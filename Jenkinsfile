@@ -2,64 +2,116 @@ pipeline {
     agent any
 
     environment {
-        // These refer to the credential ID we will create in Jenkins
+        // Jenkins credential ID for Docker Hub (configure in Jenkins → Manage Credentials)
         DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
-        BACKEND_IMAGE = 'mittal122/chattining-backend'
-        FRONTEND_IMAGE = 'mittal122/chattining-frontend'
+        GATEWAY_IMAGE  = 'mittal122/chattining-gateway'
+        AUTH_IMAGE      = 'mittal122/chattining-auth'
+        USER_IMAGE      = 'mittal122/chattining-user'
+        CHAT_IMAGE      = 'mittal122/chattining-chat'
+        FRONTEND_IMAGE  = 'mittal122/chattining-frontend'
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                // Pulls the latest code from GitHub
                 checkout scm
             }
         }
 
-        stage('Build Backend Image') {
-            steps {
-                script {
-                    echo "Building Backend Image..."
-                    def backendApp = docker.build("${BACKEND_IMAGE}:latest", "./backend")
+        stage('Build Microservice Images') {
+            parallel {
+                stage('API Gateway') {
+                    steps {
+                        script {
+                            echo "Building API Gateway..."
+                            docker.build("${GATEWAY_IMAGE}:latest", "./services/api-gateway")
+                        }
+                    }
                 }
-            }
-        }
-
-        stage('Push Backend Image') {
-            steps {
-                script {
-                    echo "Pushing Backend Image to Docker Hub..."
-                    docker.withRegistry('https://index.docker.io/v1/', DOCKER_CREDENTIALS_ID) {
-                        docker.image("${BACKEND_IMAGE}:latest").push()
+                stage('Auth Service') {
+                    steps {
+                        script {
+                            echo "Building Auth Service..."
+                            docker.build("${AUTH_IMAGE}:latest", "./services/auth-service")
+                        }
+                    }
+                }
+                stage('User Service') {
+                    steps {
+                        script {
+                            echo "Building User Service..."
+                            docker.build("${USER_IMAGE}:latest", "./services/user-service")
+                        }
+                    }
+                }
+                stage('Chat Service') {
+                    steps {
+                        script {
+                            echo "Building Chat Service..."
+                            docker.build("${CHAT_IMAGE}:latest", "./services/chat-service")
+                        }
+                    }
+                }
+                stage('Frontend') {
+                    steps {
+                        script {
+                            echo "Building Frontend..."
+                            docker.build("${FRONTEND_IMAGE}:latest", "./frontend")
+                        }
                     }
                 }
             }
         }
 
-        stage('Build Frontend Image') {
+        stage('Push All Images') {
             steps {
                 script {
-                    echo "Building Frontend Image..."
-                    def frontendApp = docker.build("${FRONTEND_IMAGE}:latest", "./frontend")
-                }
-            }
-        }
-
-        stage('Push Frontend Image') {
-            steps {
-                script {
-                    echo "Pushing Frontend Image to Docker Hub..."
+                    echo "Pushing all images to Docker Hub..."
                     docker.withRegistry('https://index.docker.io/v1/', DOCKER_CREDENTIALS_ID) {
+                        docker.image("${GATEWAY_IMAGE}:latest").push()
+                        docker.image("${GATEWAY_IMAGE}:latest").push("${env.BUILD_NUMBER}")
+                        docker.image("${AUTH_IMAGE}:latest").push()
+                        docker.image("${AUTH_IMAGE}:latest").push("${env.BUILD_NUMBER}")
+                        docker.image("${USER_IMAGE}:latest").push()
+                        docker.image("${USER_IMAGE}:latest").push("${env.BUILD_NUMBER}")
+                        docker.image("${CHAT_IMAGE}:latest").push()
+                        docker.image("${CHAT_IMAGE}:latest").push("${env.BUILD_NUMBER}")
                         docker.image("${FRONTEND_IMAGE}:latest").push()
+                        docker.image("${FRONTEND_IMAGE}:latest").push("${env.BUILD_NUMBER}")
                     }
+                }
+            }
+        }
+
+        stage('Security Scan (Trivy)') {
+            steps {
+                script {
+                    echo "Scanning all images for vulnerabilities with Trivy..."
+                    def images = [
+                        GATEWAY_IMAGE,
+                        AUTH_IMAGE,
+                        USER_IMAGE,
+                        CHAT_IMAGE,
+                        FRONTEND_IMAGE
+                    ]
+                    for (img in images) {
+                        echo "Scanning ${img}:latest..."
+                        sh """
+                            trivy image --severity CRITICAL,HIGH \
+                              --exit-code 0 \
+                              --format table \
+                              ${img}:latest
+                        """
+                    }
+                    echo "Security scan complete ✅"
                 }
             }
         }
     }
-    
+
     post {
         success {
-            echo "Successfully built and pushed all images to Docker Hub! 🎉"
+            echo "Successfully built, scanned, and pushed all 5 microservice images to Docker Hub! 🎉"
         }
         failure {
             echo "Pipeline failed 😢. Check the Jenkins logs for details."

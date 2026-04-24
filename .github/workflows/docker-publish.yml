@@ -1,3 +1,16 @@
+# ─────────────────────────────────────────────────────────────
+# Docker Hub Publish — Microservice Architecture
+# ─────────────────────────────────────────────────────────────
+# Builds and pushes 6 Docker images:
+#   - mittal122/chattining-gateway   (API Gateway)
+#   - mittal122/chattining-auth      (Auth Service)
+#   - mittal122/chattining-user      (User Service)
+#   - mittal122/chattining-chat      (Chat Service)
+#   - mittal122/chattining-frontend  (React Web App)
+#
+# For full CI/CD with EKS deployment, see deploy.yml
+# ─────────────────────────────────────────────────────────────
+
 name: Build and Push Docker Images
 
 on:
@@ -7,52 +20,105 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
-  build-and-push-backend:
+  # ── Test all services ──
+  test:
+    name: "🧪 Run Tests"
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo
         uses: actions/checkout@v4
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          
-      - name: Build and push backend image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: mittal122/chattining-backend:latest
-          cache-from: type=registry,ref=mittal122/chattining-backend:buildcache
-          cache-to: type=registry,ref=mittal122/chattining-backend:buildcache,mode=max
 
-  build-and-push-frontend:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Test Auth Service
+        working-directory: ./services/auth-service
+        run: |
+          npm ci
+          npm test --if-present
+        env:
+          JWT_SECRET: test_secret_for_ci
+
+      - name: Test User Service
+        working-directory: ./services/user-service
+        run: |
+          npm ci
+          npm test --if-present
+        env:
+          JWT_SECRET: test_secret_for_ci
+
+      - name: Test Chat Service
+        working-directory: ./services/chat-service
+        run: |
+          npm ci
+          npm test --if-present
+        env:
+          JWT_SECRET: test_secret_for_ci
+
+  # ── Build Matrix — all microservices in parallel ──
+  build-and-push:
+    needs: test
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: api-gateway
+            context: ./services/api-gateway
+            image: mittal122/chattining-gateway
+          - service: auth-service
+            context: ./services/auth-service
+            image: mittal122/chattining-auth
+          - service: user-service
+            context: ./services/user-service
+            image: mittal122/chattining-user
+          - service: chat-service
+            context: ./services/chat-service
+            image: mittal122/chattining-chat
+          - service: frontend
+            context: ./frontend
+            image: mittal122/chattining-frontend
+    name: "🐳 Build ${{ matrix.service }}"
     steps:
       - name: Check out the repo
         uses: actions/checkout@v4
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          
-      - name: Build and push frontend image
+
+      - name: Build and push ${{ matrix.service }}
         uses: docker/build-push-action@v5
         with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
+          context: ${{ matrix.context }}
+          file: ${{ matrix.context }}/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
-          tags: mittal122/chattining-frontend:latest
-          cache-from: type=registry,ref=mittal122/chattining-frontend:buildcache
-          cache-to: type=registry,ref=mittal122/chattining-frontend:buildcache,mode=max
+          tags: |
+            ${{ matrix.image }}:${{ github.sha }}
+            ${{ matrix.image }}:latest
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: Scan ${{ matrix.service }} image (Docker Scout)
+        if: github.event_name != 'pull_request'
+        uses: docker/scout-action@v1
+        with:
+          command: cves
+          image: ${{ matrix.image }}:${{ github.sha }}
+          only-severities: critical,high
+          exit-code: false
+
+      - name: Scan ${{ matrix.service }} image (Trivy)
+        if: github.event_name != 'pull_request'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ matrix.image }}:${{ github.sha }}
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'

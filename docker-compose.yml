@@ -1,7 +1,10 @@
-version: "3.9"
 
 services:
-  # ── MongoDB ──
+  # ══════════════════════════════════════════════════════════
+  # INFRASTRUCTURE
+  # ══════════════════════════════════════════════════════════
+
+  # ── MongoDB Database ──
   mongo:
     image: mongo:7
     container_name: chat-mongo
@@ -10,30 +13,179 @@ services:
     volumes:
       - mongo-data:/data/db
     restart: unless-stopped
+    networks:
+      - chat-network
 
-  # ── Backend (Node.js + Express) ──
-  backend:
-    build: ./backend
-    container_name: chat-backend
+  # ── Redis (Socket.IO Adapter + Event Bus) ──
+  redis:
+    image: redis:7-alpine
+    container_name: chat-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - chat-network
+
+  # ══════════════════════════════════════════════════════════
+  # MICROSERVICES
+  # ══════════════════════════════════════════════════════════
+
+  # ── API Gateway (The Front Door — Port 5000) ──
+  api-gateway:
+    build: ./services/api-gateway
+    container_name: chat-gateway
     ports:
       - "5000:5000"
     environment:
       - PORT=5000
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - USER_SERVICE_URL=http://user-service:5002
+      - CHAT_SERVICE_URL=http://chat-service:5003
+      - CORS_ORIGIN=*
+    depends_on:
+      - auth-service
+      - user-service
+      - chat-service
+    restart: unless-stopped
+    networks:
+      - chat-network
+
+  # ── Auth Service (Port 5001) ──
+  auth-service:
+    build: ./services/auth-service
+    container_name: chat-auth
+    environment:
+      - PORT=5001
       - MONGO_URI=mongodb://mongo:27017/chatApp
       - JWT_SECRET=your_jwt_secret_key_change_this_in_production
     depends_on:
       - mongo
     restart: unless-stopped
+    networks:
+      - chat-network
 
-  # ── Frontend (Vite build → nginx) ──
+  # ── User Service (Port 5002) ──
+  user-service:
+    build: ./services/user-service
+    container_name: chat-user
+    environment:
+      - PORT=5002
+      - MONGO_URI=mongodb://mongo:27017/chatApp
+      - JWT_SECRET=your_jwt_secret_key_change_this_in_production
+    depends_on:
+      - mongo
+    restart: unless-stopped
+    networks:
+      - chat-network
+
+  # ── Chat Service (Port 5003) ──
+  chat-service:
+    build: ./services/chat-service
+    container_name: chat-chat
+    environment:
+      - PORT=5003
+      - MONGO_URI=mongodb://mongo:27017/chatApp
+      - JWT_SECRET=your_jwt_secret_key_change_this_in_production
+      - REDIS_URL=redis://redis:6379
+      - CORS_ORIGIN=*
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+    networks:
+      - chat-network
+
+  # ══════════════════════════════════════════════════════════
+  # FRONTEND
+  # ══════════════════════════════════════════════════════════
+
+  # ── React Frontend (Vite build → nginx) ──
   frontend:
     build: ./frontend
     container_name: chat-frontend
     ports:
       - "3000:80"
     depends_on:
-      - backend
+      - api-gateway
     restart: unless-stopped
+    networks:
+      - chat-network
+
+  # ══════════════════════════════════════════════════════════
+  # MONITORING STACK
+  # ══════════════════════════════════════════════════════════
+
+  # ── Prometheus (Metrics Database) ──
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: chat-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+    restart: unless-stopped
+    networks:
+      - chat-network
+
+  # ── Grafana (Dashboard UI) ──
+  grafana:
+    image: grafana/grafana:latest
+    container_name: chat-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+      - loki
+    restart: unless-stopped
+    networks:
+      - chat-network
+
+  # ── Loki (Log Aggregation) ──
+  loki:
+    image: grafana/loki:2.9.6
+    container_name: chat-loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki-data:/loki
+    restart: unless-stopped
+    networks:
+      - chat-network
+
+  # ── Promtail (Log Collector) ──
+  promtail:
+    image: grafana/promtail:2.9.6
+    container_name: chat-promtail
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    restart: unless-stopped
+    networks:
+      - chat-network
+
+networks:
+  chat-network:
+    driver: bridge
 
 volumes:
   mongo-data:
+  prometheus-data:
+  grafana-data:
+  loki-data:

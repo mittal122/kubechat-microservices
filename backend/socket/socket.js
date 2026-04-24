@@ -4,19 +4,64 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const Message = require("../models/Message"); // Dynamically calculate delivered states
 
+// ── Redis Adapter for Multi-Pod Horizontal Scaling ──
+// When REDIS_URL is set, Socket.IO broadcasts flow through Redis pub/sub,
+// allowing events to reach sockets connected to ANY pod in the cluster.
+// When REDIS_URL is absent, falls back to single-process mode (local dev).
+let createAdapter, Redis;
+try {
+  createAdapter = require("@socket.io/redis-adapter").createAdapter;
+  Redis = require("ioredis");
+} catch (err) {
+  // Graceful fallback if Redis packages are not installed
+  console.warn("Redis adapter packages not found — running in single-process mode");
+}
+
 const app = express();
 const server = http.createServer(app);
+
+// ── CORS Configuration ──
+// Production: set CORS_ORIGIN to your domain (e.g., "https://chat.yourdomain.com")
+// Development: defaults to "*" for local testing
+const corsOrigin = process.env.CORS_ORIGIN || "*";
 
 // Initialize Socket.io
 const io = new Server(server, {
   cors: {
-    origin: "*", // Will lock this down later for production
+    origin: corsOrigin,
     methods: ["GET", "POST"],
   },
 });
 
+// ── Attach Redis Adapter (if REDIS_URL is configured) ──
+if (process.env.REDIS_URL && createAdapter && Redis) {
+  const pubClient = new Redis(process.env.REDIS_URL);
+  const subClient = pubClient.duplicate();
+
+  pubClient.on("error", (err) => console.error("Redis Pub Client Error:", err));
+  subClient.on("error", (err) => console.error("Redis Sub Client Error:", err));
+
+  // Once both clients are ready, mount the adapter
+  Promise.all([
+    new Promise((resolve) => pubClient.on("ready", resolve)),
+    new Promise((resolve) => subClient.on("ready", resolve)),
+  ]).then(() => {
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log("✅ Socket.IO Redis Adapter connected — multi-pod broadcasting enabled");
+  }).catch((err) => {
+    console.error("❌ Redis Adapter connection failed:", err);
+  });
+} else {
+  console.log("ℹ️  Socket.IO running in single-process mode (no REDIS_URL)");
+}
+
+// ── User-Socket Tracking ──
+// LOCAL in-memory map — each pod tracks its OWN connected sockets.
+// The Redis adapter handles cross-pod event delivery automatically;
+// when io.to(socketId).emit() is called, the adapter routes the event
+// to whichever pod owns that socket. This keeps the map simple and fast.
 // Format: { "userId": ["socketId1", "socketId2"] }
-const userSocketMap = {}; 
+const userSocketMap = {};
 
 const getReceiverSocketIds = (receiverId) => {
   return userSocketMap[receiverId] || [];
@@ -31,7 +76,7 @@ io.use((socket, next) => {
   jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
     if (err) return next(new Error("Authentication Error: Invalid or expired token"));
     // Mount the securely decoded ID onto the socket session natively
-    socket.userId = decoded.userId; 
+    socket.userId = decoded.userId;
     next();
   });
 });
@@ -49,6 +94,7 @@ io.on("connection", (socket) => {
   }
 
   // Broadcast to all clients exactly who is online
+  // With Redis adapter, this broadcast reaches ALL pods automatically
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
   // --- AUTOMATED DELIVERY SYSTEM ---
@@ -63,13 +109,14 @@ io.on("connection", (socket) => {
             { receiverId: userId, status: "sent" },
             { $set: { status: "delivered" } }
           );
-          
+
           // Burst delivery ticks live back to the original senders' phones magically
+          // With Redis adapter, io.to() automatically routes to the correct pod
           senders.forEach((senderId) => {
-             const senderSockets = getReceiverSocketIds(senderId.toString());
-             senderSockets.forEach((sId) => {
-                 io.to(sId).emit("messagesDelivered", { receiverId: userId });
-             });
+            const senderSockets = getReceiverSocketIds(senderId.toString());
+            senderSockets.forEach((sId) => {
+              io.to(sId).emit("messagesDelivered", { receiverId: userId });
+            });
           });
         }
       } catch (err) {

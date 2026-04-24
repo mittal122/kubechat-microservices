@@ -1,0 +1,10 @@
+# ─────────────────────────────────────────
+# Namespace: isolates all Chattining resources
+# ─────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chattining
+  labels:
+    app.kubernetes.io/name: chattining
+    app.kubernetes.io/part-of: chattining-application

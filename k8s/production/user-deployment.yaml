@@ -1,0 +1,129 @@
+# ─────────────────────────────────────────
+# User Service Deployment + HPA
+# ─────────────────────────────────────────
+# Handles: user listing, search (regex + $text index)
+# Dependencies: MongoDB (via MONGO_URI secret)
+# ─────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: chattining
+  labels:
+    app.kubernetes.io/name: chattining
+    app.kubernetes.io/component: user-service
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+        app.kubernetes.io/name: chattining
+        app.kubernetes.io/component: user-service
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: user-service
+          image: mittal122/chattining-user:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5002
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "5002"
+            - name: NODE_ENV
+              value: "production"
+          envFrom:
+            - secretRef:
+                name: chattining-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 5002
+            failureThreshold: 10
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5002
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5002
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: chattining
+  labels:
+    app.kubernetes.io/name: chattining
+    app.kubernetes.io/component: user-service
+spec:
+  selector:
+    app: user-service
+  ports:
+    - protocol: TCP
+      port: 5002
+      targetPort: 5002
+---
+# ── User Service HPA ──
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: user-hpa
+  namespace: chattining
+  labels:
+    app.kubernetes.io/name: chattining
+    app.kubernetes.io/component: user-service
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: user-service
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 65
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
