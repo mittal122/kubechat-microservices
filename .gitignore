@@ -1,5 +1,6 @@
 # Added by code-review-graph
 .code-review-graph/
+code-review-graph/
 node_modules/
 build/
 .dart_tool/
@@ -7,3 +8,23 @@ dist/
 coverage/
 .idea/
 .vscode/
+
+# IDE & Assistant Tooling
+.cursor/
+.claude/
+.windsurfrules
+.cursorrules
+.mcp.json
+.opencode.json
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.kiro/
+
+# Reports & Temporary/Scratch Files
+report/
+*.docx
+"cicd piple walkthroug"
+"cicd piple walkthroug.txt"
+SESSION_HANDOFF.md
+implementation_plan.md
