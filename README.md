@@ -58,3 +58,10 @@ flowchart TD
 - Real-time Socket.IO communication
 - Frontend chat workspace and UX
 - Dockerized deployment and CI/CD automation
+
+## Architecture documentation
+
+| Document | What it covers |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Full system overview — all services, data flows, Kubernetes config, monitoring |
+| [docs/API_GATEWAY_DEEP_DIVE.md](docs/API_GATEWAY_DEEP_DIVE.md) | In-depth explanation of the API Gateway (port 5000): routing, WebSocket proxying, path rewriting, Prometheus metrics, CORS, error handling, and interview talking points |
