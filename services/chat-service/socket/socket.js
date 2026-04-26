@@ -29,6 +29,14 @@ const initSocket = (server) => {
       origin: corsOrigin,
       methods: ["GET", "POST"],
     },
+    // ── FIX: WebSocket-only + aggressive keepalive ──
+    // Polling through Ngrok's reverse proxy buffers responses,
+    // causing the "messages arrive only after disconnect" symptom.
+    // WebSocket gives a persistent, unbuffered bidirectional channel.
+    transports: ["websocket"],
+    // Aggressive ping to keep Ngrok tunnel alive (it kills idle connections)
+    pingTimeout: 30000,   // 30s before considering connection dead
+    pingInterval: 10000,  // Ping every 10s to keep tunnel warm
   });
 
   // ── Attach Redis Adapter (if REDIS_URL is configured) ──
@@ -65,7 +73,8 @@ const initSocket = (server) => {
   });
 
   io.on("connection", (socket) => {
-    console.log("🟢 User connected:", socket.id);
+    const transport = socket.conn.transport.name;
+    console.log(`🟢 User connected: ${socket.id} (transport: ${transport})`);
 
     const userId = socket.userId;
     if (userId) {
@@ -73,6 +82,7 @@ const initSocket = (server) => {
         userSocketMap[userId] = [];
       }
       userSocketMap[userId].push(socket.id);
+      console.log(`   → Mapped userId ${userId} → [${userSocketMap[userId].join(', ')}]`);
     }
 
     // ── Update Prometheus Gauge ──

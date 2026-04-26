@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../config/api_config.dart';
 import 'storage_service.dart';
@@ -21,41 +22,83 @@ class SocketService {
     required Function() onConnected,
     required Function() onDisconnected,
   }) async {
+    // Dispose any existing socket first to prevent duplication
+    if (_socket != null) {
+      _socket!.dispose();
+      _socket = null;
+    }
+
     final token = await StorageService.getAccessToken();
-    if (token == null) return;
+    if (token == null) {
+      debugPrint('[Socket] No token — skipping connection');
+      return;
+    }
+
+    debugPrint('[Socket] Connecting to ${ApiConfig.baseUrl}');
 
     _socket = IO.io(
       ApiConfig.baseUrl,
       IO.OptionBuilder()
-          .setTransports(['polling', 'websocket']) // Allow polling fallback if WS blocked
-          .setAuth({'token': token}) // Maps to socket.handshake.auth.token
+          // ╔══════════════════════════════════════════════════════════════╗
+          // ║  FIX: Force WebSocket-only transport.                       ║
+          // ║  HTTP long-polling through Ngrok's reverse proxy causes     ║
+          // ║  response buffering — messages queue until the poll times   ║
+          // ║  out or the connection drops (= "only see messages after    ║
+          // ║  disconnect"). WebSocket gives a persistent, unbuffered     ║
+          // ║  bidirectional channel.                                     ║
+          // ╚══════════════════════════════════════════════════════════════╝
+          .setTransports(['websocket'])
+          .setAuth({'token': token})
           .disableAutoConnect()
           .enableReconnection()
+          .setReconnectionDelay(1000)
+          .setReconnectionDelayMax(5000)
+          .setReconnectionAttempts(double.infinity.toInt())
+          .setExtraHeaders({'ngrok-skip-browser-warning': 'true'})
           .build(),
     );
 
-    _socket!.onConnect((_) => onConnected());
-    _socket!.onDisconnect((_) => onDisconnected());
+    _socket!.onConnect((_) {
+      debugPrint('[Socket] ✅ Connected (id: ${_socket!.id})');
+      onConnected();
+    });
+
+    _socket!.onDisconnect((_) {
+      debugPrint('[Socket] ❌ Disconnected');
+      onDisconnected();
+    });
+
+    _socket!.onConnectError((err) {
+      debugPrint('[Socket] ⚠️  Connection error: $err');
+    });
+
+    _socket!.onError((err) {
+      debugPrint('[Socket] ⚠️  Error: $err');
+    });
 
     _socket!.on('getOnlineUsers', (data) {
       if (data is List) {
+        debugPrint('[Socket] Online users: ${data.length}');
         onOnlineUsers(data.cast<String>());
       }
     });
 
     _socket!.on('newMessage', (data) {
+      debugPrint('[Socket] 📩 newMessage received');
       if (data is Map<String, dynamic>) {
         onNewMessage(data);
       }
     });
 
     _socket!.on('messagesDelivered', (data) {
+      debugPrint('[Socket] ✓✓ messagesDelivered');
       if (data is Map<String, dynamic>) {
         onMessagesDelivered(data);
       }
     });
 
     _socket!.on('messagesSeen', (data) {
+      debugPrint('[Socket] 👁 messagesSeen');
       if (data is Map<String, dynamic>) {
         onMessagesSeen(data);
       }

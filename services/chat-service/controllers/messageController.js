@@ -57,9 +57,13 @@ const sendMessage = async (req, res) => {
     }
 
     if (isReceiverOnline && io) {
+      console.log(`📤 Emitting newMessage to ${receiverSocketIds.length} socket(s) of user ${receiverId}`);
       receiverSocketIds.forEach((socketId) => {
+        console.log(`   → io.to(${socketId}).emit("newMessage")`);
         io.to(socketId).emit("newMessage", message);
       });
+    } else {
+      console.log(`📥 Message stored (receiver ${receiverId} offline, status: ${message.status})`);
     }
 
     messagesSentTotal.inc({ status: "success" });
