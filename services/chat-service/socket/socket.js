@@ -29,14 +29,16 @@ const initSocket = (server) => {
       origin: corsOrigin,
       methods: ["GET", "POST"],
     },
-    // ── FIX: WebSocket-only + aggressive keepalive ──
-    // Polling through Ngrok's reverse proxy buffers responses,
-    // causing the "messages arrive only after disconnect" symptom.
-    // WebSocket gives a persistent, unbuffered bidirectional channel.
-    transports: ["websocket"],
-    // Aggressive ping to keep Ngrok tunnel alive (it kills idle connections)
-    pingTimeout: 30000,   // 30s before considering connection dead
-    pingInterval: 10000,  // Ping every 10s to keep tunnel warm
+    // Allow both transports — Socket.IO handshakes via polling first,
+    // then upgrades to WebSocket for persistent bidirectional channel.
+    // The API Gateway proxy has been fixed to correctly forward both.
+    transports: ["polling", "websocket"],
+    allowUpgrades: true,
+    // Aggressive keepalive to prevent Ngrok/proxy from killing idle connections
+    pingTimeout: 30000,
+    pingInterval: 10000,
+    // Allow Engine.IO v3 clients (backward compat)
+    allowEIO3: true,
   });
 
   // ── Attach Redis Adapter (if REDIS_URL is configured) ──

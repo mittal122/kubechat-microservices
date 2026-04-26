@@ -57,19 +57,38 @@ class ServerHealthProvider extends ChangeNotifier {
         final body = e.response?.data?.toString() ?? '';
         // Check if ngrok returned its "offline" error page
         if (body.contains('ERR_NGROK') || body.contains('ngrok')) {
-          _setOnline(false, 'Ngrok tunnel offline');
+          _setOnline(false, 'Tunnel offline');
         } else {
           // Any other HTTP error (404, 401, 500) means the server IS responding
           _setOnline(true, '');
         }
       } else {
-        // No response at all — connection refused, timeout, DNS failure
-        _setOnline(false, e.message ?? 'Connection failed');
+        // No response at all — sanitize raw error into readable label
+        _setOnline(false, _sanitizeError(e));
       }
     } catch (e) {
-      _setOnline(false, e.toString());
+      _setOnline(false, 'Offline');
     } finally {
       _isChecking = false;
+    }
+  }
+
+  /// Convert raw DioException into a clean, human-readable status label.
+  /// This prevents technical strings like "0000.5" from showing in the UI.
+  String _sanitizeError(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+        return 'Timed out';
+      case DioExceptionType.receiveTimeout:
+        return 'No response';
+      case DioExceptionType.sendTimeout:
+        return 'Send timeout';
+      case DioExceptionType.connectionError:
+        return 'No connection';
+      case DioExceptionType.cancel:
+        return 'Cancelled';
+      default:
+        return 'Offline';
     }
   }
 

@@ -39,15 +39,10 @@ class SocketService {
     _socket = IO.io(
       ApiConfig.baseUrl,
       IO.OptionBuilder()
-          // ╔══════════════════════════════════════════════════════════════╗
-          // ║  FIX: Force WebSocket-only transport.                       ║
-          // ║  HTTP long-polling through Ngrok's reverse proxy causes     ║
-          // ║  response buffering — messages queue until the poll times   ║
-          // ║  out or the connection drops (= "only see messages after    ║
-          // ║  disconnect"). WebSocket gives a persistent, unbuffered     ║
-          // ║  bidirectional channel.                                     ║
-          // ╚══════════════════════════════════════════════════════════════╝
-          .setTransports(['websocket'])
+          // Socket.IO handshakes via HTTP polling, then upgrades to
+          // WebSocket. The API Gateway proxy has been fixed to correctly
+          // forward both transport types (path-doubling bug resolved).
+          .setTransports(['polling', 'websocket'])
           .setAuth({'token': token})
           .disableAutoConnect()
           .enableReconnection()
