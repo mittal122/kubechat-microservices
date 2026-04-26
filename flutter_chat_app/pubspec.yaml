@@ -1,7 +1,7 @@
 name: flutter_chat_app
-description: "Chattining — A minimalist real-time chat application for Windows desktop."
+description: "KubeChat — A secure, privacy-first real-time chat application."
 publish_to: 'none'
-version: 1.0.0+1
+version: 2.0.0+2
 
 environment:
   sdk: ^3.6.0
@@ -27,6 +27,15 @@ dependencies:
 
   # Date/time formatting
   intl: ^0.19.0
+
+  # QR Code generation (privacy-first discovery)
+  qr_flutter: ^4.1.0
+
+  # QR Code scanning (camera-based)
+  mobile_scanner: ^5.1.1
+
+  # System share sheet
+  share_plus: ^9.0.0
 
 dev_dependencies:
   flutter_test:

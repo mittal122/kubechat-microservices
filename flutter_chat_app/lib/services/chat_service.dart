@@ -5,7 +5,7 @@ import '../models/message_model.dart';
 import '../models/user_model.dart';
 import 'api_service.dart';
 
-/// Chat service — handles conversation and message API calls.
+/// Chat service — handles conversation, message, and user discovery API calls.
 class ChatService {
   static Dio get _dio => ApiService.dio;
 
@@ -18,7 +18,6 @@ class ChatService {
   }
 
   /// Fetch message history for a conversation with pagination.
-  /// [page] starts at 1, [limit] defaults to 50 messages per page.
   static Future<List<MessageModel>> getMessages(
     String conversationId, {
     int page = 1,
@@ -48,7 +47,23 @@ class ChatService {
     await _dio.put('${ApiConfig.messages}/$conversationId/seen');
   }
 
-  /// Search users by name or email.
+  /// Find a user by their connect code (privacy-first discovery).
+  static Future<UserModel?> findUserByCode(String code) async {
+    try {
+      final response = await _dio.get('${ApiConfig.findByCode}/$code');
+      if (response.data != null && response.data['user'] != null) {
+        return UserModel.fromJson(response.data['user']);
+      }
+      return null;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404 || e.response?.statusCode == 400) {
+        return null; // Not found or own code
+      }
+      rethrow;
+    }
+  }
+
+  /// Search users by name or email (legacy — kept for backward compat).
   static Future<List<UserModel>> searchUsers(String query) async {
     final response =
         await _dio.get(ApiConfig.searchUsers, queryParameters: {'query': query});

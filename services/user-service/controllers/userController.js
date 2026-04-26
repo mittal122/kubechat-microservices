@@ -14,7 +14,7 @@ const getAllUsers = async (req, res) => {
     const query = { _id: { $ne: req.user._id } };
 
     const users = await User.find(query)
-      .select("name email")
+      .select("name email connectCode")
       .skip(skip)
       .limit(limit);
 
@@ -31,6 +31,44 @@ const getAllUsers = async (req, res) => {
     });
   } catch (error) {
     console.error("GetAllUsers error:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Joi schema for connect code lookup
+const codeSchema = Joi.object({
+  code: Joi.string().min(3).max(10).required(),
+});
+
+// @desc    Find a user by their connect code
+// @route   GET /api/users/code/:code
+// @access  Private
+const findByCode = async (req, res) => {
+  try {
+    const code = req.params.code;
+
+    if (!code || code.length < 3) {
+      return res.status(400).json({ message: "Invalid connect code" });
+    }
+
+    // Normalize: uppercase and ensure dash format
+    const normalizedCode = code.toUpperCase().trim();
+
+    const user = await User.findOne({ connectCode: normalizedCode })
+      .select("name email connectCode");
+
+    if (!user) {
+      return res.status(404).json({ message: "No user found with this code" });
+    }
+
+    // Don't allow looking up yourself
+    if (user._id.toString() === req.user._id.toString()) {
+      return res.status(400).json({ message: "This is your own connect code" });
+    }
+
+    res.status(200).json({ user });
+  } catch (error) {
+    console.error("FindByCode error:", error.message);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -74,7 +112,7 @@ const searchUsers = async (req, res) => {
         ],
       };
 
-      usersQuery = User.find(searchQuery).select("name email").sort({ name: 1 });
+      usersQuery = User.find(searchQuery).select("name email connectCode").sort({ name: 1 });
       total = await User.countDocuments(searchQuery);
     } else {
       const searchQuery = {
@@ -83,7 +121,7 @@ const searchUsers = async (req, res) => {
       };
 
       usersQuery = User.find(searchQuery, { score: { $meta: "textScore" } })
-        .select("name email")
+        .select("name email connectCode")
         .sort({ score: { $meta: "textScore" } });
       total = await User.countDocuments(searchQuery);
     }
@@ -108,4 +146,4 @@ const searchUsers = async (req, res) => {
   }
 };
 
-module.exports = { getAllUsers, searchUsers };
+module.exports = { getAllUsers, searchUsers, findByCode };

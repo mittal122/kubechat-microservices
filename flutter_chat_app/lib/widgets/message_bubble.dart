@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../config/app_theme.dart';
-import '../../models/message_model.dart';
+import '../config/app_theme.dart';
+import '../models/message_model.dart';
 
-/// A single message bubble — sent (right, violet) or received (left, dark surface).
-/// Equivalent to React's MessageBubble.jsx.
+/// Message bubble — teal gradient for sent, frosted surface for received.
 class MessageBubble extends StatelessWidget {
   final MessageModel message;
   final bool isOwnMessage;
@@ -30,23 +29,23 @@ class MessageBubble extends StatelessWidget {
     if (message.status == 'seen' || message.isSeen) {
       return const Icon(Icons.done_all, size: 14, color: AppTheme.seen);
     } else if (message.status == 'delivered') {
-      return Icon(Icons.done_all, size: 14, color: AppTheme.delivered);
+      return const Icon(Icons.done_all, size: 14, color: AppTheme.delivered);
     } else {
-      return Icon(Icons.check, size: 14, color: AppTheme.sent);
+      return const Icon(Icons.check, size: 14, color: AppTheme.sent);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         mainAxisAlignment:
             isOwnMessage ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           Container(
             constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.55,
+              maxWidth: MediaQuery.of(context).size.width * 0.72,
             ),
             decoration: BoxDecoration(
               gradient: isOwnMessage ? AppTheme.primaryGradient : null,
@@ -62,8 +61,17 @@ class MessageBubble extends StatelessWidget {
               border: isOwnMessage
                   ? null
                   : Border.all(color: AppTheme.border, width: 0.5),
+              boxShadow: isOwnMessage
+                  ? [
+                      BoxShadow(
+                        color: AppTheme.primary.withAlpha(30),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Column(
               crossAxisAlignment: isOwnMessage
                   ? CrossAxisAlignment.end
@@ -73,9 +81,10 @@ class MessageBubble extends StatelessWidget {
                   message.text,
                   style: AppTheme.bodyMedium.copyWith(
                     color: isOwnMessage
-                        ? Colors.white
-                        : AppTheme.textPrimary.withOpacity(0.9),
+                        ? AppTheme.background
+                        : AppTheme.textPrimary,
                     height: 1.4,
+                    fontSize: 14,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -86,7 +95,7 @@ class MessageBubble extends StatelessWidget {
                       _formatTime(message.createdAt),
                       style: AppTheme.labelSmall.copyWith(
                         color: isOwnMessage
-                            ? Colors.white.withOpacity(0.6)
+                            ? AppTheme.background.withAlpha(150)
                             : AppTheme.textFaint,
                         fontSize: 10,
                       ),

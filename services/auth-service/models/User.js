@@ -1,5 +1,20 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
+
+/**
+ * Generate a unique 7-character connect code in format: XXX-XXXX
+ * Uses crypto.randomBytes for cryptographic randomness.
+ */
+function generateConnectCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // No I/O/0/1 to avoid confusion
+  const bytes = crypto.randomBytes(7);
+  let code = "";
+  for (let i = 0; i < 7; i++) {
+    code += chars[bytes[i] % chars.length];
+  }
+  return code.slice(0, 3) + "-" + code.slice(3);
+}
 
 const userSchema = new mongoose.Schema(
   {
@@ -25,6 +40,11 @@ const userSchema = new mongoose.Schema(
       minlength: [6, "Password must be at least 6 characters"],
       select: false,
     },
+    connectCode: {
+      type: String,
+      unique: true,
+      index: true,
+    },
     refreshToken: {
       type: String,
     },
@@ -37,8 +57,22 @@ const userSchema = new mongoose.Schema(
 // Add compound text index for scalable search
 userSchema.index({ name: "text", email: "text" });
 
-// Hash password before saving
+// Generate connect code before saving (only on new documents)
 userSchema.pre("save", async function () {
+  // Generate connect code for new users
+  if (this.isNew && !this.connectCode) {
+    let code;
+    let exists = true;
+    // Retry loop to guarantee uniqueness
+    while (exists) {
+      code = generateConnectCode();
+      const found = await mongoose.model("User").findOne({ connectCode: code });
+      exists = !!found;
+    }
+    this.connectCode = code;
+  }
+
+  // Hash password
   if (!this.isModified("password")) {
     return;
   }

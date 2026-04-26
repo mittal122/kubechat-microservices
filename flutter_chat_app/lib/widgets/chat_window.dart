@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/chat_provider.dart';
@@ -7,8 +6,7 @@ import '../providers/socket_provider.dart';
 import 'message_bubble.dart';
 import 'message_input.dart';
 
-/// The main chat window showing messages for the active conversation.
-/// Equivalent to React's ChatWindow.jsx.
+/// Full-screen chat window — pushed as a new route from conversations tab.
 class ChatWindow extends StatefulWidget {
   final String currentUserId;
 
@@ -22,12 +20,13 @@ class _ChatWindowState extends State<ChatWindow> {
   final ScrollController _scrollController = ScrollController();
   bool _isTyping = false;
   bool _hasInteracted = false;
+  bool _showScrollFab = false;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
 
-    // Wire up socket events for typing
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final socketProvider = context.read<SocketProvider>();
       final chatProvider = context.read<ChatProvider>();
@@ -48,6 +47,17 @@ class _ChatWindowState extends State<ChatWindow> {
         }
       };
     });
+  }
+
+  void _onScroll() {
+    if (_scrollController.hasClients) {
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      final currentScroll = _scrollController.offset;
+      final shouldShow = maxScroll - currentScroll > 200;
+      if (shouldShow != _showScrollFab) {
+        setState(() => _showScrollFab = shouldShow);
+      }
+    }
   }
 
   void _scrollToBottom({bool animated = true}) {
@@ -73,7 +83,6 @@ class _ChatWindowState extends State<ChatWindow> {
     final conv = chatProvider.activeConversation;
     if (conv == null || conv.isNew || conv.id == null) return;
 
-    // Check if there are unseen messages
     final hasUnseen = chatProvider.messages.any(
         (m) => m.receiverId == widget.currentUserId && m.status != 'seen');
     if (hasUnseen) {
@@ -92,190 +101,264 @@ class _ChatWindowState extends State<ChatWindow> {
     return Consumer<ChatProvider>(
       builder: (context, chatProvider, _) {
         final conv = chatProvider.activeConversation;
-        if (conv == null) return const SizedBox.shrink();
+        if (conv == null) {
+          return const Scaffold(
+            backgroundColor: AppTheme.background,
+            body: Center(child: Text('No conversation selected')),
+          );
+        }
 
         final otherUser = conv.otherUser;
-        final isOnline = context.watch<SocketProvider>().isUserOnline(otherUser.id);
+        final isOnline =
+            context.watch<SocketProvider>().isUserOnline(otherUser.id);
         final isConnected = context.watch<SocketProvider>().isConnected;
         final messages = chatProvider.messages;
 
-        // Auto-scroll when new messages arrive
         if (messages.isNotEmpty) {
           _scrollToBottom(animated: true);
         }
 
-        return GestureDetector(
-          onTap: _markActive,
-          child: KeyboardListener(
-            focusNode: FocusNode(),
-            onKeyEvent: (event) {
-              if (event is KeyDownEvent &&
-                  event.logicalKey == LogicalKeyboardKey.escape) {
-                chatProvider.clearChat();
-              }
-            },
-            child: Column(
-              children: [
-                // ── Header ──
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surface.withOpacity(0.5),
-                    border: const Border(
-                      bottom: BorderSide(color: AppTheme.border, width: 0.5),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      // Avatar + online dot
-                      Stack(
+        return Scaffold(
+          backgroundColor: AppTheme.background,
+          body: Container(
+            decoration:
+                const BoxDecoration(gradient: AppTheme.backgroundGradient),
+            child: GestureDetector(
+              onTap: _markActive,
+              child: Column(
+                children: [
+                  // ── Header ──
+                  SafeArea(
+                    bottom: false,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.surface.withAlpha(220),
+                        border: const Border(
+                          bottom:
+                              BorderSide(color: AppTheme.border, width: 0.5),
+                        ),
+                      ),
+                      child: Row(
                         children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: AppTheme.surfaceLight,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: AppTheme.border, width: 0.5),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              otherUser.name.isNotEmpty
-                                  ? otherUser.name[0].toUpperCase()
-                                  : '?',
-                              style: AppTheme.bodyMedium.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+                          // Back button
+                          IconButton(
+                            onPressed: () {
+                              chatProvider.clearChat();
+                              Navigator.of(context).pop();
+                            },
+                            icon: const Icon(Icons.arrow_back_rounded,
+                                size: 22, color: AppTheme.textSecondary),
                           ),
-                          if (isOnline)
-                            Positioned(
-                              bottom: -1,
-                              right: -1,
-                              child: Container(
-                                width: 12,
-                                height: 12,
+                          const SizedBox(width: 4),
+                          // Avatar
+                          Stack(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
                                 decoration: BoxDecoration(
-                                  color: AppTheme.online,
+                                  color: AppTheme.surfaceLight,
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                      color: AppTheme.background, width: 2),
+                                    color: isOnline
+                                        ? AppTheme.online.withAlpha(80)
+                                        : AppTheme.border,
+                                    width: isOnline ? 2 : 1,
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  otherUser.name.isNotEmpty
+                                      ? otherUser.name[0].toUpperCase()
+                                      : '?',
+                                  style: AppTheme.headingSmall.copyWith(
+                                    color: AppTheme.primary,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                              if (isOnline)
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.online,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: AppTheme.surface, width: 2),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(width: 12),
+                          // Name + status
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  otherUser.name,
+                                  style: AppTheme.bodyMedium.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 1),
+                                Text(
+                                  _isTyping
+                                      ? 'typing...'
+                                      : isOnline
+                                          ? 'Active now'
+                                          : 'Offline',
+                                  style: AppTheme.labelSmall.copyWith(
+                                    color: _isTyping
+                                        ? AppTheme.primary
+                                        : isOnline
+                                            ? AppTheme.online
+                                            : AppTheme.textFaint,
+                                    fontStyle: _isTyping
+                                        ? FontStyle.italic
+                                        : FontStyle.normal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (!isConnected)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withAlpha(30),
+                                borderRadius: BorderRadius.circular(
+                                    AppTheme.radiusPill),
+                              ),
+                              child: Text(
+                                'Reconnecting…',
+                                style: AppTheme.labelSmall.copyWith(
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
                         ],
                       ),
-                      const SizedBox(width: 16),
-                      // Name + status
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              otherUser.name,
-                              style: AppTheme.bodyMedium.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              isOnline ? 'Active now' : 'Offline',
-                              style: AppTheme.labelSmall.copyWith(
-                                color: isOnline
-                                    ? AppTheme.online
-                                    : AppTheme.textFaint,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Connection indicator
-                      if (!isConnected)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.15),
-                            borderRadius:
-                                BorderRadius.circular(AppTheme.radiusMedium),
-                          ),
-                          child: Text(
-                            'Reconnecting…',
-                            style: AppTheme.labelSmall.copyWith(
-                              color: Colors.orange,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                    ],
+                    ),
                   ),
-                ),
 
-                // ── Messages ──
-                Expanded(
-                  child: chatProvider.loadingMessages
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppTheme.primary,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : messages.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 56,
-                                    height: 56,
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.surface,
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                          color: AppTheme.border, width: 0.5),
+                  // ── Messages ──
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        chatProvider.loadingMessages
+                            ? const Center(
+                                child: CircularProgressIndicator(
+                                  color: AppTheme.primary,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : messages.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          width: 60,
+                                          height: 60,
+                                          decoration: const BoxDecoration(
+                                            color: AppTheme.surfaceLight,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          alignment: Alignment.center,
+                                          child: const Icon(
+                                              Icons
+                                                  .chat_bubble_outline_rounded,
+                                              color: AppTheme.textFaint,
+                                              size: 26),
+                                        ),
+                                        const SizedBox(height: 14),
+                                        Text(
+                                          'Say hello! 👋',
+                                          style: AppTheme.bodyMedium.copyWith(
+                                            color: AppTheme.textSecondary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Start a conversation with ${otherUser.name}',
+                                          style: AppTheme.bodySmall.copyWith(
+                                              color: AppTheme.textMuted),
+                                        ),
+                                      ],
                                     ),
-                                    alignment: Alignment.center,
-                                    child: Icon(Icons.chat_bubble_outline,
-                                        color: AppTheme.textFaint, size: 24),
+                                  )
+                                : ListView.builder(
+                                    controller: _scrollController,
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 16, 16, 8),
+                                    itemCount: messages.length +
+                                        (_isTyping ? 1 : 0),
+                                    itemBuilder: (context, index) {
+                                      if (index == messages.length &&
+                                          _isTyping) {
+                                        return _buildTypingIndicator();
+                                      }
+                                      final msg = messages[index];
+                                      return MessageBubble(
+                                        message: msg,
+                                        isOwnMessage: msg.senderId ==
+                                            widget.currentUserId,
+                                      );
+                                    },
                                   ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    'No messages yet — say hello!',
-                                    style: AppTheme.bodySmall
-                                        .copyWith(color: AppTheme.textFaint),
-                                  ),
-                                ],
+                        // Scroll to bottom FAB
+                        if (_showScrollFab)
+                          Positioned(
+                            bottom: 8,
+                            right: 16,
+                            child: GestureDetector(
+                              onTap: () => _scrollToBottom(),
+                              child: Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.surface,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: AppTheme.border),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withAlpha(50),
+                                      blurRadius: 8,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: AppTheme.textSecondary,
+                                  size: 20,
+                                ),
                               ),
-                            )
-                          : ListView.builder(
-                              controller: _scrollController,
-                              padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-                              itemCount: messages.length + (_isTyping ? 1 : 0),
-                              itemBuilder: (context, index) {
-                                if (index == messages.length && _isTyping) {
-                                  // Typing indicator
-                                  return _buildTypingIndicator();
-                                }
-                                final msg = messages[index];
-                                return MessageBubble(
-                                  message: msg,
-                                  isOwnMessage:
-                                      msg.senderId == widget.currentUserId,
-                                );
-                              },
                             ),
-                ),
+                          ),
+                      ],
+                    ),
+                  ),
 
-                // ── Input ──
-                MessageInput(
-                  onSendMessage: (text) {
-                    chatProvider.sendMessage(otherUser.id, text);
-                  },
-                  conversationId: conv.isNew ? null : conv.id,
-                ),
-              ],
+                  // ── Input ──
+                  MessageInput(
+                    onSendMessage: (text) {
+                      chatProvider.sendMessage(otherUser.id, text);
+                    },
+                    conversationId: conv.isNew ? null : conv.id,
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -307,7 +390,8 @@ class _ChatWindowState extends State<ChatWindow> {
                       width: 7,
                       height: 7,
                       decoration: BoxDecoration(
-                        color: AppTheme.primary.withOpacity(0.4 + value * 0.4),
+                        color:
+                            AppTheme.primary.withAlpha((100 + value * 150).toInt()),
                         shape: BoxShape.circle,
                       ),
                     );

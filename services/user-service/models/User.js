@@ -19,6 +19,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       select: false,
     },
+    connectCode: {
+      type: String,
+      unique: true,
+      index: true,
+    },
     refreshToken: {
       type: String,
     },

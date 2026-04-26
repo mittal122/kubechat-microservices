@@ -62,6 +62,7 @@ const registerUser = async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
+      connectCode: user.connectCode,
       createdAt: user.createdAt,
       accessToken,
       refreshToken,
@@ -114,6 +115,7 @@ const loginUser = async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
+      connectCode: user.connectCode,
       createdAt: user.createdAt,
       accessToken,
       refreshToken,
@@ -179,6 +181,7 @@ const getMe = async (req, res) => {
       _id: req.user._id,
       name: req.user.name,
       email: req.user.email,
+      connectCode: req.user.connectCode,
       createdAt: req.user.createdAt,
     });
   } catch (error) {
