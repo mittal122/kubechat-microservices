@@ -8,18 +8,34 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
+  # ── Docker container logs ──
   - job_name: docker
     static_configs:
       - targets:
           - localhost
         labels:
-          job: docker
-          __path__: /var/lib/docker/containers/*/*log
+          job: kubechat
+          __path__: /var/lib/docker/containers/*/*-json.log
+
     pipeline_stages:
+      # Parse Docker JSON log format
       - docker: {}
+
+      # Extract container name from the file path
+      # Docker log files are at /var/lib/docker/containers/<container_id>/<container_id>-json.log
       - json:
           expressions:
             stream: stream
-            tag: attrs.tag
+            attrs: attrs
+
+      # Add the stream label (stdout/stderr)
       - labels:
           stream:
+
+      # Map container names to service labels using regex
+      - match:
+          selector: '{job="kubechat"}'
+          stages:
+            - regex:
+                source: filename
+                expression: '/var/lib/docker/containers/(?P<container_id>[a-f0-9]+)/'

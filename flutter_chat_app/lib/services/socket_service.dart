@@ -4,12 +4,30 @@ import '../config/api_config.dart';
 import 'storage_service.dart';
 
 /// Socket.IO service — manages WebSocket connection with JWT authentication.
-/// Equivalent to React's SocketContext.jsx.
 class SocketService {
   IO.Socket? _socket;
 
   IO.Socket? get socket => _socket;
   bool get isConnected => _socket?.connected ?? false;
+
+  /// Safely convert any Map to Map<String, dynamic>.
+  /// Socket.IO client can send data as Map<dynamic, dynamic>,
+  /// Map<String, Object?>, or other subtypes — all of which
+  /// FAIL the `is Map<String, dynamic>` type check and cause
+  /// messages to be silently dropped.
+  Map<String, dynamic>? _toMap(dynamic data) {
+    if (data == null) return null;
+    if (data is Map) {
+      try {
+        return Map<String, dynamic>.from(data);
+      } catch (e) {
+        debugPrint('[Socket] ⚠️ Map conversion failed: $e');
+        return null;
+      }
+    }
+    debugPrint('[Socket] ⚠️ Expected Map but got ${data.runtimeType}');
+    return null;
+  }
 
   /// Connect to the Socket.IO server with JWT auth.
   Future<void> connect({
@@ -39,9 +57,6 @@ class SocketService {
     _socket = IO.io(
       ApiConfig.baseUrl,
       IO.OptionBuilder()
-          // Socket.IO handshakes via HTTP polling, then upgrades to
-          // WebSocket. The API Gateway proxy has been fixed to correctly
-          // forward both transport types (path-doubling bug resolved).
           .setTransports(['polling', 'websocket'])
           .setAuth({'token': token})
           .disableAutoConnect()
@@ -71,40 +86,56 @@ class SocketService {
       debugPrint('[Socket] ⚠️  Error: $err');
     });
 
+    // ── Online users (List<String>) ──
     _socket!.on('getOnlineUsers', (data) {
+      debugPrint('[Socket] Online users update: ${data?.runtimeType}');
       if (data is List) {
-        debugPrint('[Socket] Online users: ${data.length}');
-        onOnlineUsers(data.cast<String>());
+        final users = List<String>.from(data.map((e) => e.toString()));
+        debugPrint('[Socket] Online users count: ${users.length}');
+        onOnlineUsers(users);
       }
     });
 
+    // ── New message ──
+    // CRITICAL FIX: Use _toMap() instead of `is Map<String, dynamic>`.
+    // Socket.IO Dart client often sends data as Map<dynamic, dynamic>
+    // which FAILS the strict type check, silently dropping every message.
     _socket!.on('newMessage', (data) {
-      debugPrint('[Socket] 📩 newMessage received');
-      if (data is Map<String, dynamic>) {
-        onNewMessage(data);
+      debugPrint('[Socket] 📩 newMessage raw type: ${data?.runtimeType}');
+      final map = _toMap(data);
+      if (map != null) {
+        debugPrint('[Socket] 📩 newMessage parsed — text: ${map['text']?.toString().substring(0, (map['text']?.toString().length ?? 0).clamp(0, 30))}');
+        onNewMessage(map);
+      } else {
+        debugPrint('[Socket] ❌ newMessage DROPPED — could not parse: $data');
       }
     });
 
+    // ── Messages delivered ──
     _socket!.on('messagesDelivered', (data) {
-      debugPrint('[Socket] ✓✓ messagesDelivered');
-      if (data is Map<String, dynamic>) {
-        onMessagesDelivered(data);
+      debugPrint('[Socket] ✓✓ messagesDelivered raw type: ${data?.runtimeType}');
+      final map = _toMap(data);
+      if (map != null) {
+        onMessagesDelivered(map);
       }
     });
 
+    // ── Messages seen ──
     _socket!.on('messagesSeen', (data) {
-      debugPrint('[Socket] 👁 messagesSeen');
-      if (data is Map<String, dynamic>) {
-        onMessagesSeen(data);
+      debugPrint('[Socket] 👁 messagesSeen raw type: ${data?.runtimeType}');
+      final map = _toMap(data);
+      if (map != null) {
+        onMessagesSeen(map);
       }
     });
 
+    // ── Typing indicators ──
     _socket!.on('typing', (room) {
-      if (room is String) onTyping(room);
+      if (room != null) onTyping(room.toString());
     });
 
     _socket!.on('stop typing', (room) {
-      if (room is String) onStopTyping(room);
+      if (room != null) onStopTyping(room.toString());
     });
 
     _socket!.connect();

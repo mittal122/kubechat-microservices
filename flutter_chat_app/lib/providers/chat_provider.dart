@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/conversation_model.dart';
 import '../models/message_model.dart';
@@ -9,7 +10,8 @@ class ChatProvider extends ChangeNotifier {
   ConversationModel? _activeConversation;
   List<MessageModel> _messages = [];
   bool _loadingMessages = false;
-  String? _error; // Latest error message for UI display
+  String? _error;
+  Timer? _pollTimer;
 
   List<ConversationModel> get conversations => _conversations;
   ConversationModel? get activeConversation => _activeConversation;
@@ -25,6 +27,59 @@ class ChatProvider extends ChangeNotifier {
 
   int get totalUnread =>
       _conversations.fold(0, (sum, c) => sum + c.unreadCount);
+
+  /// Start fallback polling (refreshes conversations + active messages every 15s).
+  /// This is a safety net in case WebSocket events fail to deliver.
+  void startFallbackPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      _silentRefresh();
+    });
+  }
+
+  /// Stop fallback polling.
+  void stopFallbackPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
+  /// Silent refresh — update conversations and active chat messages
+  /// without showing loading indicators. Only notifies if data changed.
+  Future<void> _silentRefresh() async {
+    try {
+      final newConversations = await ChatService.getConversations();
+      // Check if conversations changed
+      if (_conversationsChanged(newConversations)) {
+        _conversations = newConversations;
+        notifyListeners();
+        debugPrint('[ChatProvider] 🔄 Poll: conversations updated');
+      }
+
+      // If active conversation exists, refresh messages too
+      if (_activeConversation != null && !_activeConversation!.isNew && _activeConversation!.id != null) {
+        final newMessages = await ChatService.getMessages(_activeConversation!.id!);
+        if (newMessages.length != _messages.length) {
+          _messages = newMessages;
+          notifyListeners();
+          debugPrint('[ChatProvider] 🔄 Poll: messages updated (${newMessages.length} msgs)');
+        }
+      }
+    } catch (e) {
+      // Silent — don't show errors for background polling
+      debugPrint('[ChatProvider] Poll error: $e');
+    }
+  }
+
+  bool _conversationsChanged(List<ConversationModel> newList) {
+    if (newList.length != _conversations.length) return true;
+    for (int i = 0; i < newList.length; i++) {
+      if (newList[i].lastMessage != _conversations[i].lastMessage ||
+          newList[i].unreadCount != _conversations[i].unreadCount) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   /// Fetch all conversations.
   Future<void> loadConversations() async {
@@ -105,13 +160,11 @@ class ChatProvider extends ChangeNotifier {
   Future<void> markMessagesSeen(String conversationId, String currentUserId) async {
     try {
       await ChatService.markMessagesSeen(conversationId);
-      // Update local message status using copyWith for clean state updates
       for (int i = 0; i < _messages.length; i++) {
         if (_messages[i].receiverId == currentUserId && _messages[i].status != 'seen') {
           _messages[i] = _messages[i].copyWith(status: 'seen', isSeen: true);
         }
       }
-      // Clear unread count
       final idx = _conversations.indexWhere((c) => c.id == conversationId);
       if (idx != -1) {
         _conversations[idx].unreadCount = 0;
@@ -124,13 +177,19 @@ class ChatProvider extends ChangeNotifier {
 
   /// Handle incoming live message from socket.
   void handleNewMessage(MessageModel message, String currentUserId) {
+    debugPrint('[ChatProvider] 📩 handleNewMessage: ${message.text} (convId: ${message.conversationId})');
+    debugPrint('[ChatProvider] activeConversation: ${_activeConversation?.id}');
+
     final isActiveChat =
         _activeConversation?.id == message.conversationId;
 
     if (isActiveChat) {
       if (!_messages.any((m) => m.id == message.id)) {
         _messages.add(message);
+        debugPrint('[ChatProvider] ✅ Message added to active chat');
       }
+    } else {
+      debugPrint('[ChatProvider] Message for inactive chat — updating conversation list');
     }
 
     // Update conversation list
@@ -197,5 +256,11 @@ class ChatProvider extends ChangeNotifier {
     _activeConversation = null;
     _messages = [];
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 }

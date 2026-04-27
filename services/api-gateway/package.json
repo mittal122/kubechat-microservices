@@ -12,6 +12,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^4.22.1",
+    "http-proxy": "^1.18.1",
     "http-proxy-middleware": "^3.0.0",
     "prom-client": "^15.1.0"
   },

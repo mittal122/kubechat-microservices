@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
@@ -5,6 +6,7 @@ import '../models/message_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../providers/socket_provider.dart';
+import '../services/notification_service.dart';
 import '../widgets/chat_window.dart';
 import '../widgets/conversations_tab.dart';
 import '../widgets/discover_tab.dart';
@@ -32,16 +34,30 @@ class _ChatScreenState extends State<ChatScreen> {
     final chatProvider = context.read<ChatProvider>();
     final socketProvider = context.read<SocketProvider>();
 
+    // Initialize notification service
+    await NotificationService().initialize();
+
     await chatProvider.loadConversations();
     await socketProvider.connect();
 
+    // Start fallback polling — safety net in case WebSocket misses events
+    chatProvider.startFallbackPolling();
+
     socketProvider.onNewMessage = (data) {
       if (auth.user == null) return;
+      debugPrint('[ChatScreen] 📩 Socket newMessage event received');
       final message = MessageModel.fromJson(data);
       chatProvider.handleNewMessage(message, auth.user!.id);
 
-      if (chatProvider.activeConversation?.id == message.conversationId) {
+      final isActiveChat = chatProvider.activeConversation?.id == message.conversationId;
+
+      if (isActiveChat) {
+        // User is viewing this chat — mark as seen, no notification
         chatProvider.markMessagesSeen(message.conversationId, auth.user!.id);
+        NotificationService().cancelForConversation(message.conversationId);
+      } else {
+        // User is NOT in this chat — show push notification
+        _showNotificationForMessage(message, chatProvider);
       }
     };
 
@@ -56,6 +72,23 @@ class _ChatScreenState extends State<ChatScreen> {
       final conversationId = data['conversationId'] as String;
       chatProvider.handleMessagesSeen(conversationId, auth.user!.id);
     };
+  }
+
+  /// Show a local push notification for a message from a non-active conversation.
+  void _showNotificationForMessage(MessageModel message, ChatProvider chatProvider) {
+    // Find sender name from conversation list
+    String senderName = 'New Message';
+    final conv = chatProvider.conversations.firstWhere(
+      (c) => c.id == message.conversationId,
+      orElse: () => chatProvider.conversations.first,
+    );
+    senderName = conv.otherUser.name;
+
+    NotificationService().showMessageNotification(
+      senderName: senderName,
+      messageText: message.text,
+      conversationId: message.conversationId,
+    );
   }
 
   void _openChat() {

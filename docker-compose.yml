@@ -15,6 +15,8 @@ services:
     restart: unless-stopped
     networks:
       - chat-network
+    labels:
+      - "service=mongodb"
 
   # ── Redis (Socket.IO Adapter + Event Bus) ──
   redis:
@@ -25,6 +27,8 @@ services:
     restart: unless-stopped
     networks:
       - chat-network
+    labels:
+      - "service=redis"
 
   # ══════════════════════════════════════════════════════════
   # MICROSERVICES
@@ -49,6 +53,14 @@ services:
     restart: unless-stopped
     networks:
       - chat-network
+    labels:
+      - "service=api-gateway"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
 
   # ── Auth Service (Port 5001) ──
   auth-service:
@@ -63,6 +75,14 @@ services:
     restart: unless-stopped
     networks:
       - chat-network
+    labels:
+      - "service=auth-service"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
 
   # ── User Service (Port 5002) ──
   user-service:
@@ -77,6 +97,14 @@ services:
     restart: unless-stopped
     networks:
       - chat-network
+    labels:
+      - "service=user-service"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
 
   # ── Chat Service (Port 5003) ──
   chat-service:
@@ -94,6 +122,14 @@ services:
     restart: unless-stopped
     networks:
       - chat-network
+    labels:
+      - "service=chat-service"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
 
   # ══════════════════════════════════════════════════════════
   # FRONTEND
@@ -165,13 +201,15 @@ services:
     networks:
       - chat-network
 
-  # ── Promtail (Log Collector) ──
+  # ── Promtail (Log Collector — reads Docker container logs) ──
   promtail:
     image: grafana/promtail:2.9.6
     container_name: chat-promtail
     volumes:
-      - /var/log:/var/log:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # Mount Docker socket to discover containers
+      - //var/run/docker.sock:/var/run/docker.sock:ro
+      # Mount Docker container logs (Windows Docker Desktop path)
+      - //var/lib/docker/containers:/var/lib/docker/containers:ro
       - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml
     command: -config.file=/etc/promtail/config.yml
     depends_on:

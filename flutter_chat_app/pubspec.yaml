@@ -37,6 +37,9 @@ dependencies:
   # System share sheet
   share_plus: ^9.0.0
 
+  # Local push notifications (message alerts)
+  flutter_local_notifications: ^17.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,5 +1,6 @@
 const express = require("express");
 const http = require("http");
+const httpProxy = require("http-proxy");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const { createProxyMiddleware } = require("http-proxy-middleware");
@@ -43,7 +44,9 @@ app.get("/health", (req, res) => {
 // ── Prometheus Metrics Endpoint ──
 app.get("/metrics", metricsEndpoint);
 
-// ── Proxy Routes ──
+// ══════════════════════════════════════════════════════════════
+//  REST API Proxies (http-proxy-middleware — works fine for HTTP)
+// ══════════════════════════════════════════════════════════════
 
 // Auth Service: /api/auth/*
 app.use("/api/auth", createProxyMiddleware({
@@ -96,59 +99,61 @@ app.use("/api/conversations", createProxyMiddleware({
   },
 }));
 
-// ═══════════════════════════════════════════════════════════════
-//  Socket.IO WebSocket Proxy — CRITICAL for real-time chat
-// ═══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+//  Socket.IO Proxy — using raw http-proxy for RELIABILITY
+// ══════════════════════════════════════════════════════════════
 //
-//  BUG FIX: In http-proxy-middleware v3, when using Express
-//  mount paths (app.use("/socket.io", proxy)), Express strips
-//  the mount prefix for middleware but NOT for the raw HTTP
-//  server's "upgrade" event. Combined with pathRewrite, this
-//  caused WebSocket upgrade requests to be proxied to
-//  /socket.io/socket.io/ (double prefix) — which doesn't exist.
-//
-//  FIX: Do NOT use an Express mount path for the socket proxy.
-//  Instead, use the middleware globally and let it match
-//  /socket.io paths itself. This way BOTH HTTP polling AND
-//  WebSocket upgrade see the correct, unmodified path.
-// ═══════════════════════════════════════════════════════════════
-const socketProxy = createProxyMiddleware({
+//  WHY NOT http-proxy-middleware for WebSocket?
+//  In v3, pathFilter + Express mount paths + pathRewrite caused
+//  WebSocket upgrade paths to be mangled (/socket.io/socket.io/).
+//  Raw http-proxy gives us DIRECT control over both HTTP polling
+//  and WebSocket upgrade — no middleware magic, no path mangling.
+// ══════════════════════════════════════════════════════════════
+
+const wsProxy = httpProxy.createProxyServer({
   target: CHAT_SERVICE_URL,
-  changeOrigin: true,
   ws: true,
-  // NO pathRewrite needed — the path /socket.io/... is already
-  // correct and maps directly to chat-service's Socket.IO
-  pathFilter: "/socket.io",
-  logger: console,
-  on: {
-    error: (err, req, res) => {
-      console.error("WebSocket proxy error:", err.message);
-    },
-    proxyReqWs: (proxyReq, req, socket, options, head) => {
-      console.log(`🔌 WS upgrade proxied: ${req.url} → ${CHAT_SERVICE_URL}${req.url}`);
-    },
-  },
+  changeOrigin: true,
 });
 
-// Use globally (not on a sub-path) so path is preserved for both
-// HTTP polling requests and WebSocket upgrade events
-app.use(socketProxy);
+wsProxy.on("error", (err, req, res) => {
+  console.error("❌ Socket proxy error:", err.message);
+  // Don't crash — just log the error
+});
+
+wsProxy.on("open", () => {
+  console.log("🔗 WebSocket connection opened to chat-service");
+});
+
+wsProxy.on("close", () => {
+  console.log("🔗 WebSocket connection closed");
+});
+
+// Proxy Socket.IO HTTP requests (polling transport)
+app.use("/socket.io", (req, res) => {
+  console.log(`📡 Socket.IO HTTP: ${req.method} ${req.url}`);
+  wsProxy.web(req, res);
+});
 
 // ── Fallback ──
 app.use("*", (req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
 
-// ── Start Server (http.createServer required for WS upgrade proxying) ──
+// ── Start Server ──
 const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 
-// Forward WebSocket upgrade events to the proxy handler
-// In http-proxy-middleware v3, we must call .upgrade(req, socket, head)
-// with the full unmodified path — which we get from the raw server event
+// Proxy WebSocket upgrade events DIRECTLY — no middleware involved
+// This is the critical path for real-time messaging
 server.on("upgrade", (req, socket, head) => {
-  console.log(`⬆️  WS Upgrade request: ${req.url}`);
-  socketProxy.upgrade(req, socket, head);
+  if (req.url.startsWith("/socket.io")) {
+    console.log(`⬆️  WS Upgrade: ${req.url} → ${CHAT_SERVICE_URL}`);
+    wsProxy.ws(req, socket, head);
+  } else {
+    console.log(`⬆️  WS Upgrade REJECTED (not socket.io): ${req.url}`);
+    socket.destroy();
+  }
 });
 
 server.listen(PORT, () => {
@@ -156,5 +161,5 @@ server.listen(PORT, () => {
   console.log(`   → Auth:  ${AUTH_SERVICE_URL}`);
   console.log(`   → Users: ${USER_SERVICE_URL}`);
   console.log(`   → Chat:  ${CHAT_SERVICE_URL}`);
-  console.log(`   → Socket.IO proxy: /socket.io → ${CHAT_SERVICE_URL}`);
+  console.log(`   → Socket.IO: raw http-proxy → ${CHAT_SERVICE_URL}`);
 });
