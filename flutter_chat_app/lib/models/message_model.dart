@@ -24,16 +24,31 @@ class MessageModel {
     required this.createdAt,
   });
 
+  /// Safely extract a string from a field that could be:
+  ///  - A plain string (from HTTP res.json → Mongoose toJSON)
+  ///  - A Map with $oid key (from raw Socket.IO emit without toJSON)
+  ///  - An ObjectId object (toString gives the hex string)
+  static String _extractId(dynamic value) {
+    if (value == null) return '';
+    if (value is String) return value;
+    if (value is Map) {
+      // MongoDB extended JSON format: {"$oid": "664f..."}
+      return value['\$oid']?.toString() ?? value.values.first?.toString() ?? '';
+    }
+    // Fallback: call toString() which works for ObjectId types
+    return value.toString();
+  }
+
   factory MessageModel.fromJson(Map<String, dynamic> json) {
     return MessageModel(
-      id: json['_id'] as String,
-      conversationId: json['conversationId'] as String,
-      senderId: json['senderId'] as String,
-      receiverId: json['receiverId'] as String,
-      text: json['text'] as String,
-      status: json['status'] as String? ?? 'sent',
-      isSeen: json['isSeen'] as bool? ?? false,
-      createdAt: json['createdAt'] as String,
+      id: _extractId(json['_id']),
+      conversationId: _extractId(json['conversationId']),
+      senderId: _extractId(json['senderId']),
+      receiverId: _extractId(json['receiverId']),
+      text: json['text']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'sent',
+      isSeen: json['isSeen'] == true,
+      createdAt: json['createdAt']?.toString() ?? DateTime.now().toIso8601String(),
     );
   }
 

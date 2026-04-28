@@ -56,11 +56,27 @@ const sendMessage = async (req, res) => {
       await conversation.save();
     }
 
+    // ══════════════════════════════════════════════════════════
+    // CRITICAL: Must call .toJSON() before emitting via Socket.IO!
+    // 
+    // res.json(message) → calls Mongoose toJSON() → ObjectIds become strings ✅
+    // io.emit("newMessage", message) → raw Mongoose doc → ObjectIds are OBJECTS ❌
+    //
+    // Without .toJSON(), the Flutter client receives:
+    //   { "_id": {"$oid": "..."}, "senderId": {"$oid": "..."} }
+    // Instead of:
+    //   { "_id": "664f...", "senderId": "664f..." }
+    //
+    // This causes MessageModel.fromJson() to crash on `json['_id'] as String`
+    // and the message is silently dropped.
+    // ══════════════════════════════════════════════════════════
+    const messageJSON = message.toJSON();
+
     if (isReceiverOnline && io) {
       console.log(`📤 Emitting newMessage to ${receiverSocketIds.length} socket(s) of user ${receiverId}`);
       receiverSocketIds.forEach((socketId) => {
         console.log(`   → io.to(${socketId}).emit("newMessage")`);
-        io.to(socketId).emit("newMessage", message);
+        io.to(socketId).emit("newMessage", messageJSON);
       });
     } else {
       console.log(`📥 Message stored (receiver ${receiverId} offline, status: ${message.status})`);
