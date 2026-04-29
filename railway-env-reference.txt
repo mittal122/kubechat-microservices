@@ -1,0 +1,55 @@
+# ════════════════════════════════════════════════════════════════
+# KubeChat — Railway Environment Variables
+# 
+# Copy these values into Railway's variable editor for each service.
+# Railway Dashboard → Your Project → Service → Variables tab
+# ════════════════════════════════════════════════════════════════
+
+# ── MONGODB (All 4 services need this) ──────────────────────────
+# Railway provides MongoDB as a plugin. After adding it to your project,
+# Railway auto-injects MONGO_URL. Use that in MONGO_URI below.
+# Format: mongodb://user:pass@host:port/chatApp
+
+MONGO_URI=${{MongoDB.MONGO_URL}}/chatApp
+
+
+# ── JWT SECRET (Auth + Chat + User services) ─────────────────────
+# Generate a strong random secret. Use this SAME value in all 3 services.
+# To generate: run this in terminal: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+
+JWT_SECRET=REPLACE_WITH_YOUR_STRONG_RANDOM_64_CHAR_SECRET
+
+
+# ── REDIS (Chat service only) ────────────────────────────────────
+# Railway provides Redis as a plugin. After adding it:
+# Railway auto-injects REDIS_URL in format: redis://default:pass@host:port
+
+REDIS_URL=${{Redis.REDIS_URL}}
+
+
+# ── SERVICE URLS (API Gateway only) ──────────────────────────────
+# After deploying each service on Railway, get its internal URL.
+# Format: https://servicename.railway.internal  (use internal URLs to avoid egress fees)
+# OR use public URLs if internal networking is not available on free tier.
+
+AUTH_SERVICE_URL=https://YOUR-AUTH-SERVICE.up.railway.app
+USER_SERVICE_URL=https://YOUR-USER-SERVICE.up.railway.app
+CHAT_SERVICE_URL=https://YOUR-CHAT-SERVICE.up.railway.app
+
+
+# ── CORS (All services) ───────────────────────────────────────────
+CORS_ORIGIN=*
+NODE_ENV=production
+
+
+# ════════════════════════════════════════════════════════════════
+# QUICK REFERENCE — Which vars go in which service:
+# ════════════════════════════════════════════════════════════════
+#
+# api-gateway:    PORT, AUTH_SERVICE_URL, USER_SERVICE_URL, CHAT_SERVICE_URL, CORS_ORIGIN
+# auth-service:   PORT, MONGO_URI, JWT_SECRET, CORS_ORIGIN
+# user-service:   PORT, MONGO_URI, JWT_SECRET, CORS_ORIGIN
+# chat-service:   PORT, MONGO_URI, JWT_SECRET, REDIS_URL, CORS_ORIGIN
+#
+# Railway sets PORT automatically — you don't need to set it manually.
+# ════════════════════════════════════════════════════════════════
