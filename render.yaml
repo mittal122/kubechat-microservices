@@ -1,0 +1,76 @@
+services:
+  # ── Auth Service ─────────────────────────────────────────────
+  - type: web
+    name: kubechat-auth
+    runtime: docker
+    dockerfilePath: ./services/auth-service/Dockerfile
+    dockerContext: ./services/auth-service
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: MONGO_URI
+        sync: false          # You will paste this manually in Render dashboard
+      - key: JWT_SECRET
+        sync: false          # You will paste this manually in Render dashboard
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        value: "*"
+
+  # ── User Service ──────────────────────────────────────────────
+  - type: web
+    name: kubechat-user
+    runtime: docker
+    dockerfilePath: ./services/user-service/Dockerfile
+    dockerContext: ./services/user-service
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        value: "*"
+
+  # ── Chat Service ──────────────────────────────────────────────
+  - type: web
+    name: kubechat-chat
+    runtime: docker
+    dockerfilePath: ./services/chat-service/Dockerfile
+    dockerContext: ./services/chat-service
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: REDIS_URL
+        sync: false          # From Upstash Redis (free)
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        value: "*"
+
+  # ── API Gateway ───────────────────────────────────────────────
+  - type: web
+    name: kubechat-gateway
+    runtime: docker
+    dockerfilePath: ./services/api-gateway/Dockerfile
+    dockerContext: ./services/api-gateway
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: AUTH_SERVICE_URL
+        sync: false          # URL of kubechat-auth service
+      - key: USER_SERVICE_URL
+        sync: false          # URL of kubechat-user service
+      - key: CHAT_SERVICE_URL
+        sync: false          # URL of kubechat-chat service
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        value: "*"
