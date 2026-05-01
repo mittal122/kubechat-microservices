@@ -34,7 +34,7 @@ class ChatProvider extends ChangeNotifier {
     _pollTimer?.cancel();
     // 3-second fallback — messages appear within 3s even if socket fails.
     // Socket.IO is the primary (instant) channel; this is the safety net.
-    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       _silentRefresh();
     });
   }
@@ -58,12 +58,16 @@ class ChatProvider extends ChangeNotifier {
       }
 
       // If active conversation exists, refresh messages too
-      if (_activeConversation != null && !_activeConversation!.isNew && _activeConversation!.id != null) {
-        final newMessages = await ChatService.getMessages(_activeConversation!.id!);
+      if (_activeConversation != null &&
+          !_activeConversation!.isNew &&
+          _activeConversation!.id != null) {
+        final newMessages =
+            await ChatService.getMessages(_activeConversation!.id!);
         if (newMessages.length != _messages.length) {
           _messages = newMessages;
           notifyListeners();
-          debugPrint('[ChatProvider] 🔄 Poll: messages updated (${newMessages.length} msgs)');
+          debugPrint(
+              '[ChatProvider] 🔄 Poll: messages updated (${newMessages.length} msgs)');
         }
       }
     } catch (e) {
@@ -159,11 +163,13 @@ class ChatProvider extends ChangeNotifier {
   }
 
   /// Mark messages as seen.
-  Future<void> markMessagesSeen(String conversationId, String currentUserId) async {
+  Future<void> markMessagesSeen(
+      String conversationId, String currentUserId) async {
     try {
       await ChatService.markMessagesSeen(conversationId);
       for (int i = 0; i < _messages.length; i++) {
-        if (_messages[i].receiverId == currentUserId && _messages[i].status != 'seen') {
+        if (_messages[i].receiverId == currentUserId &&
+            _messages[i].status != 'seen') {
           _messages[i] = _messages[i].copyWith(status: 'seen', isSeen: true);
         }
       }
@@ -179,11 +185,11 @@ class ChatProvider extends ChangeNotifier {
 
   /// Handle incoming live message from socket.
   void handleNewMessage(MessageModel message, String currentUserId) {
-    debugPrint('[ChatProvider] 📩 handleNewMessage: ${message.text} (convId: ${message.conversationId})');
+    debugPrint(
+        '[ChatProvider] 📩 handleNewMessage: ${message.text} (convId: ${message.conversationId})');
     debugPrint('[ChatProvider] activeConversation: ${_activeConversation?.id}');
 
-    final isActiveChat =
-        _activeConversation?.id == message.conversationId;
+    final isActiveChat = _activeConversation?.id == message.conversationId;
 
     if (isActiveChat) {
       if (!_messages.any((m) => m.id == message.id)) {
@@ -191,7 +197,8 @@ class ChatProvider extends ChangeNotifier {
         debugPrint('[ChatProvider] ✅ Message added to active chat');
       }
     } else {
-      debugPrint('[ChatProvider] Message for inactive chat — updating conversation list');
+      debugPrint(
+          '[ChatProvider] Message for inactive chat — updating conversation list');
     }
 
     // Update conversation list
@@ -202,13 +209,15 @@ class ChatProvider extends ChangeNotifier {
       conv.unreadCount = isActiveChat ? 0 : conv.unreadCount + 1;
       // Move to top
       _conversations.removeAt(idx);
-      _conversations.insert(0, ConversationModel(
-        id: conv.id,
-        otherUser: conv.otherUser,
-        lastMessage: message.text,
-        lastMessageAt: message.createdAt,
-        unreadCount: conv.unreadCount,
-      ));
+      _conversations.insert(
+          0,
+          ConversationModel(
+            id: conv.id,
+            otherUser: conv.otherUser,
+            lastMessage: message.text,
+            lastMessageAt: message.createdAt,
+            unreadCount: conv.unreadCount,
+          ));
     } else {
       // New conversation — reload
       loadConversations();
@@ -220,7 +229,8 @@ class ChatProvider extends ChangeNotifier {
   /// Handle delivery status update from socket.
   void handleMessagesDelivered(String receiverId, String currentUserId) {
     for (int i = 0; i < _messages.length; i++) {
-      if (_messages[i].senderId == currentUserId && _messages[i].status == 'sent') {
+      if (_messages[i].senderId == currentUserId &&
+          _messages[i].status == 'sent') {
         _messages[i] = _messages[i].copyWith(status: 'delivered');
       }
     }
@@ -240,17 +250,20 @@ class ChatProvider extends ChangeNotifier {
   }
 
   void _updateConversationPreview(MessageModel message) {
-    final idx = _conversations.indexWhere((c) => c.id == message.conversationId);
+    final idx =
+        _conversations.indexWhere((c) => c.id == message.conversationId);
     if (idx != -1) {
       final conv = _conversations[idx];
       _conversations.removeAt(idx);
-      _conversations.insert(0, ConversationModel(
-        id: conv.id,
-        otherUser: conv.otherUser,
-        lastMessage: message.text,
-        lastMessageAt: message.createdAt,
-        unreadCount: conv.unreadCount,
-      ));
+      _conversations.insert(
+          0,
+          ConversationModel(
+            id: conv.id,
+            otherUser: conv.otherUser,
+            lastMessage: message.text,
+            lastMessageAt: message.createdAt,
+            unreadCount: conv.unreadCount,
+          ));
     }
   }
 
