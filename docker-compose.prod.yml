@@ -59,8 +59,8 @@ services:
       - REDIS_URL=${REDIS_URL}
       - NODE_ENV=${NODE_ENV:-production}
       - CORS_ORIGIN=${CORS_ORIGIN:-*}
-    expose:
-      - "5003"
+    ports:
+      - "5003:5003"       # Exposed directly for Socket.IO WebSocket connections
     networks:
       - kubechat-net
     healthcheck:

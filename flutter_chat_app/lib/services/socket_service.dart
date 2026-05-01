@@ -52,10 +52,10 @@ class SocketService {
       return;
     }
 
-    debugPrint('[Socket] Connecting to ${ApiConfig.baseUrl}');
+    debugPrint('[Socket] Connecting to ${ApiConfig.socketUrl}');
 
     _socket = IO.io(
-      ApiConfig.baseUrl,
+      ApiConfig.socketUrl,
       IO.OptionBuilder()
           .setTransports(['polling', 'websocket'])
           .setAuth({'token': token})

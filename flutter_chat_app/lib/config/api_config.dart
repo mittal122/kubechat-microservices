@@ -14,7 +14,7 @@ class ApiConfig {
   // ── Environment URLs ──────────────────────────────────────────
   // Change PRODUCTION_URL after you deploy to Railway:
   static const String _productionUrl =
-      'https://kubechat-gateway.up.railway.app'; // ← update after Railway deploy
+      'http://52.21.194.18:5000'; // AWS EC2 — Permanent Elastic IP (never changes)
 
   // Your local ngrok URL (for testing on your own PC):
   static const String _localUrl =
@@ -26,6 +26,13 @@ class ApiConfig {
 
   static String get baseUrl =>
       _env == 'local' ? _localUrl : _productionUrl;
+
+  // Socket.IO connects DIRECTLY to chat-service (bypasses gateway proxy)
+  // This avoids http-proxy dropping the auth packet during WebSocket handshake.
+  static String get socketUrl =>
+      _env == 'local'
+          ? 'http://localhost:5003'
+          : 'http://52.21.194.18:5003';
 
   // ── Auth Endpoints ──
   static const String login = '/api/auth/login';
