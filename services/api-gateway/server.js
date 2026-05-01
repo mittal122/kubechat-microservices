@@ -129,10 +129,17 @@ wsProxy.on("close", () => {
   console.log("🔗 WebSocket connection closed");
 });
 
-// Proxy Socket.IO HTTP requests (polling transport)
-app.use("/socket.io", (req, res) => {
-  console.log(`📡 Socket.IO HTTP: ${req.method} ${req.url}`);
-  wsProxy.web(req, res);
+// Proxy ALL Socket.IO traffic (polling + websocket) — mounted at root
+// so Express does NOT strip /socket.io from req.url before proxying.
+// If we mount at app.use("/socket.io", ...) Express strips the prefix,
+// causing polling requests to hit /  instead of /socket.io on chat-service.
+app.use((req, res, next) => {
+  if (req.path.startsWith('/socket.io')) {
+    console.log(`📡 Socket.IO HTTP: ${req.method} ${req.url}`);
+    wsProxy.web(req, res);
+  } else {
+    next();
+  }
 });
 
 // ── Fallback ──
