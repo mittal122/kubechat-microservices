@@ -1,6 +1,7 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const Message = require("../models/Message");
+const User = require("../models/User");
 const { activeWebsocketConnections } = require("../config/metrics");
 
 // ── Redis Adapter for Multi-Pod Horizontal Scaling ──
@@ -84,17 +85,27 @@ const initSocket = (server) => {
     });
   });
 
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     const transport = socket.conn.transport.name;
-    console.log(`🟢 User connected: ${socket.id} (transport: ${transport})`);
-
     const userId = socket.userId;
+
+    // Look up user name for human-readable logs
+    let userName = userId;
+    try {
+      const userDoc = await User.findById(userId).select('name email');
+      if (userDoc) {
+        userName = `${userDoc.name} (${userDoc.email})`;
+        socket.userName = userDoc.name; // cache for disconnect
+      }
+    } catch (_) {}
+
+    console.log(`🟢 [ONLINE] "${socket.userName || userId}" is now online | socket: ${socket.id} | transport: ${transport}`);
+
     if (userId) {
       if (!userSocketMap[userId]) {
         userSocketMap[userId] = [];
       }
       userSocketMap[userId].push(socket.id);
-      console.log(`   → Mapped userId ${userId} → [${userSocketMap[userId].join(', ')}]`);
     }
 
     // ── Update Prometheus Gauge ──
@@ -113,6 +124,7 @@ const initSocket = (server) => {
               { receiverId: userId, status: "sent" },
               { $set: { status: "delivered" } }
             );
+            console.log(`📦 [DELIVERY] ${senders.length} queued message(s) marked delivered for "${socket.userName || userId}"`);
 
             senders.forEach((senderId) => {
               const senderSockets = getReceiverSocketIds(senderId.toString());
@@ -129,19 +141,21 @@ const initSocket = (server) => {
 
     socket.on("join chat", (room) => {
       socket.join(room);
-      console.log(`User ${userId} joined room: ${room}`);
+      console.log(`🏠 [JOIN ROOM] "${socket.userName || userId}" joined conversation room: ${room}`);
     });
 
     socket.on("typing", (room) => socket.in(room).emit("typing", room));
     socket.on("stop typing", (room) => socket.in(room).emit("stop typing", room));
 
     socket.on("disconnect", () => {
-      console.log("🔴 User disconnected:", socket.id);
+      const displayName = socket.userName || userId;
+      console.log(`🔴 [OFFLINE] "${displayName}" went offline | socket: ${socket.id}`);
       if (userId && userSocketMap[userId]) {
         userSocketMap[userId] = userSocketMap[userId].filter((id) => id !== socket.id);
 
         if (userSocketMap[userId].length === 0) {
           delete userSocketMap[userId];
+          console.log(`📊 [PRESENCE] Online users now: ${Object.keys(userSocketMap).length} | removed: "${displayName}"`);
         }
 
         // ── Update Prometheus Gauge ──

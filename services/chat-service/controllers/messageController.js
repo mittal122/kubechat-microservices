@@ -72,21 +72,23 @@ const sendMessage = async (req, res) => {
     // ══════════════════════════════════════════════════════════
     const messageJSON = message.toJSON();
 
+    const senderName = req.user.name;
+    const receiverName = receiverExists.name;
+
     if (isReceiverOnline && io) {
-      console.log(`📤 Emitting newMessage to ${receiverSocketIds.length} socket(s) of user ${receiverId}`);
+      console.log(`📤 [MESSAGE SENT] "${senderName}" → "${receiverName}": "${text.substring(0, 60)}${text.length > 60 ? '...' : ''}"  (delivered in real-time)`);
       receiverSocketIds.forEach((socketId) => {
-        console.log(`   → io.to(${socketId}).emit("newMessage")`);
         io.to(socketId).emit("newMessage", messageJSON);
       });
     } else {
-      console.log(`📥 Message stored (receiver ${receiverId} offline, status: ${message.status})`);
+      console.log(`📬 [MESSAGE STORED] "${senderName}" → "${receiverName}": "${text.substring(0, 60)}" (receiver offline, queued)`);
     }
 
     messagesSentTotal.inc({ status: "success" });
 
     res.status(201).json(message);
   } catch (error) {
-    console.error("SendMessage error:", error.message);
+    console.error(`❌ [MESSAGE ERROR] ${error.message}`);
     messagesSentTotal.inc({ status: "error" });
     res.status(500).json({ message: "Server error" });
   }
@@ -152,6 +154,13 @@ const markMessagesSeen = async (req, res) => {
       { $set: { status: "seen", isSeen: true } }
     );
 
+    // Look up both user names for the log
+    const [reader, sender] = await Promise.all([
+      User.findById(userId).select('name'),
+      otherUserId ? User.findById(otherUserId).select('name') : null,
+    ]);
+    console.log(`👁️  [MESSAGES SEEN] "${reader?.name}" read messages from "${sender?.name || 'unknown'}"`);
+
     const io = getIO();
     if (otherUserId && io) {
       const senderSocketIds = getReceiverSocketIds(otherUserId.toString());
@@ -164,7 +173,7 @@ const markMessagesSeen = async (req, res) => {
 
     res.status(200).json({ message: "Messages marked as seen" });
   } catch (error) {
-    console.error("MarkMessagesSeen error:", error.message);
+    console.error(`❌ [MARK SEEN ERROR] ${error.message}`);
     res.status(500).json({ message: "Server error" });
   }
 };

@@ -38,6 +38,7 @@ const registerUser = async (req, res) => {
     const { error } = registerSchema.validate(req.body);
     if (error) {
       registrationsTotal.inc({ status: "validation_failed" });
+      console.warn(`🔴 [REGISTER FAILED] Validation error for ${req.body.email}: ${error.details[0].message}`);
       return res.status(400).json({ message: error.details[0].message });
     }
 
@@ -46,6 +47,7 @@ const registerUser = async (req, res) => {
     const userExists = await User.findOne({ email: email.toLowerCase() });
     if (userExists) {
       registrationsTotal.inc({ status: "duplicate" });
+      console.warn(`⚠️  [REGISTER FAILED] ${email} already exists`);
       return res.status(400).json({ message: "User already exists with this email" });
     }
 
@@ -57,6 +59,7 @@ const registerUser = async (req, res) => {
     await User.updateOne({ _id: user._id }, { $set: { refreshToken } });
 
     registrationsTotal.inc({ status: "success" });
+    console.log(`🆕 [REGISTER] New user "${user.name}" (${user.email}) registered successfully | id: ${user._id}`);
 
     res.status(201).json({
       _id: user._id,
@@ -68,7 +71,7 @@ const registerUser = async (req, res) => {
       refreshToken,
     });
   } catch (error) {
-    console.error("Register error:", error.message);
+    console.error(`❌ [REGISTER ERROR] ${error.message}`);
     registrationsTotal.inc({ status: "error" });
 
     if (error.name === "ValidationError") {
@@ -95,12 +98,14 @@ const loginUser = async (req, res) => {
 
     if (!user) {
       loginAttemptsTotal.inc({ status: "failed" });
+      console.warn(`🔴 [LOGIN FAILED] No account found for: ${email}`);
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
       loginAttemptsTotal.inc({ status: "failed" });
+      console.warn(`🔴 [LOGIN FAILED] Wrong password for: ${user.name} (${email})`);
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
@@ -110,6 +115,7 @@ const loginUser = async (req, res) => {
     await User.updateOne({ _id: user._id }, { $set: { refreshToken } });
 
     loginAttemptsTotal.inc({ status: "success" });
+    console.log(`✅ [LOGIN] "${user.name}" (${user.email}) logged in successfully | id: ${user._id}`);
 
     res.status(200).json({
       _id: user._id,
@@ -121,7 +127,7 @@ const loginUser = async (req, res) => {
       refreshToken,
     });
   } catch (error) {
-    console.error("Login error:", error.message);
+    console.error(`❌ [LOGIN ERROR] ${error.message}`);
     loginAttemptsTotal.inc({ status: "error" });
     res.status(500).json({ message: "Server error" });
   }
@@ -141,7 +147,8 @@ const refreshTokenHandler = async (req, res) => {
     try {
       decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
     } catch (err) {
-      return res.status(401).json({ message: "Invalid or expired refresh token" });
+      console.warn(`⚠️  [TOKEN REFRESH FAILED] Invalid/expired refresh token`);
+      return res.status(401).json({ message: "Invalid or expired refresh token", expired: true });
     }
 
     const user = await User.findById(decoded.userId);
@@ -151,14 +158,16 @@ const refreshTokenHandler = async (req, res) => {
     }
 
     if (user.refreshToken !== refreshToken) {
+      console.warn(`⚠️  [TOKEN REFRESH FAILED] Token mismatch for ${user.name}`);
       return res.status(401).json({ message: "Refresh token does not match" });
     }
 
     const newAccessToken = generateAccessToken(user._id, user.email);
+    console.log(`🔄 [TOKEN REFRESH] "${user.name}" (${user.email}) refreshed their access token`);
 
     res.status(200).json({ accessToken: newAccessToken });
   } catch (error) {
-    console.error("Refresh token error:", error.message);
+    console.error(`❌ [TOKEN REFRESH ERROR] ${error.message}`);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -167,9 +176,10 @@ const refreshTokenHandler = async (req, res) => {
 const logoutUser = async (req, res) => {
   try {
     await User.updateOne({ _id: req.user._id }, { $set: { refreshToken: null } });
+    console.log(`👋 [LOGOUT] "${req.user.name}" (${req.user.email}) logged out`);
     res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
-    console.error("Logout error:", error.message);
+    console.error(`❌ [LOGOUT ERROR] ${error.message}`);
     res.status(500).json({ message: "Server error" });
   }
 };
