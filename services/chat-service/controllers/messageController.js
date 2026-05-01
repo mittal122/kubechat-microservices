@@ -178,4 +178,37 @@ const markMessagesSeen = async (req, res) => {
   }
 };
 
-module.exports = { sendMessage, getMessages, markMessagesSeen };
+// @desc    Mark all sent messages in a conversation as delivered
+// @route   PUT /api/messages/:conversationId/delivered
+// @access  Private
+const markMessagesDelivered = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user._id;
+
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ message: "Conversation not found" });
+    }
+
+    const isParticipant = conversation.participants.some(
+      (pId) => pId.toString() === userId.toString()
+    );
+
+    if (!isParticipant) {
+      return res.status(403).json({ message: "Not authorized to update this chat" });
+    }
+
+    await Message.updateMany(
+      { conversationId, receiverId: userId, status: "sent" },
+      { $set: { status: "delivered" } }
+    );
+
+    res.status(200).json({ message: "Messages marked as delivered" });
+  } catch (error) {
+    console.error(`❌ [MARK DELIVERED ERROR] ${error.message}`);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+module.exports = { sendMessage, getMessages, markMessagesSeen, markMessagesDelivered };

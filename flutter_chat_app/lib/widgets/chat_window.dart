@@ -109,9 +109,8 @@ class _ChatWindowState extends State<ChatWindow> {
         }
 
         final otherUser = conv.otherUser;
-        final isOnline =
-            context.watch<SocketProvider>().isUserOnline(otherUser.id);
-        final isConnected = context.watch<SocketProvider>().isConnected;
+        final isOnline = chatProvider.isUserOnline(otherUser.id);
+        final isConnected = true; // Hardcoded to true to hide reconnecting banner since we use polling now
         final messages = chatProvider.messages;
 
         if (messages.isNotEmpty) {

@@ -45,7 +45,7 @@ Railway Project: "kubechat"
 2. Select **"Database"** → **"Add MongoDB"**
 3. Railway auto-provisions MongoDB and gives you a connection string
 4. Click on the MongoDB service → **"Variables"** tab
-5. Copy the value of `MONGO_URL` — you'll need it in Step 7
+5. Copy the value of `MONGO_URL` "mongodb://${{MONGO_INITDB_ROOT_USERNAME}}:${{MONGO_INITDB_ROOT_PASSWORD}}@${{RAILWAY_PRIVATE_DOMAIN}}:27017" — you'll need it in Step 7
 
 ---
 
@@ -54,7 +54,7 @@ Railway Project: "kubechat"
 1. Click **"+ New"** → **"Database"** → **"Add Redis"**
 2. Railway auto-provisions Redis
 3. Click Redis service → **"Variables"** tab
-4. Copy the value of `REDIS_URL` — you'll need it in Step 7
+4. Copy the value of `REDIS_URL` "redis://${{ REDISUSER }}:${{ REDIS_PASSWORD }}@${{ REDISHOST }}:${{ REDISPORT }}"— you'll need it in Step 7
 
 ---
 

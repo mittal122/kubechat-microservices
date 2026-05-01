@@ -47,6 +47,36 @@ class ChatService {
     await _dio.put('${ApiConfig.messages}/$conversationId/seen');
   }
 
+  /// Mark all messages in a conversation as delivered (double tick).
+  static Future<void> markMessagesDelivered(String conversationId) async {
+    await _dio.put('${ApiConfig.messages}/$conversationId/delivered');
+  }
+
+  /// Update own presence (online/offline).
+  static Future<void> updatePresence(bool isOnline) async {
+    try {
+      await _dio.put(ApiConfig.presence, data: {'isOnline': isOnline});
+    } catch (e) {
+      // Silently fail if token is expired during logout
+    }
+  }
+
+  /// Get presence for specific users.
+  static Future<Map<String, dynamic>> getPresence(List<String> userIds) async {
+    if (userIds.isEmpty) return {};
+    final response = await _dio.post(ApiConfig.presence, data: {'userIds': userIds});
+    
+    // Convert to map of id -> { isOnline, lastActive }
+    final map = <String, dynamic>{};
+    for (var u in response.data) {
+      map[u['_id']] = {
+        'isOnline': u['isOnline'] ?? false,
+        'lastActive': u['lastActive'],
+      };
+    }
+    return map;
+  }
+
   /// Find a user by their connect code (privacy-first discovery).
   static Future<UserModel?> findUserByCode(String code) async {
     try {

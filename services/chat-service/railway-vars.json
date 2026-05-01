@@ -1,0 +1,7 @@
+{
+  "MONGO_URI": "mongodb://${{MONGO_INITDB_ROOT_USERNAME}}:${{MONGO_INITDB_ROOT_PASSWORD}}@${{RAILWAY_PRIVATE_DOMAIN}}:27017/chatApp",
+  "JWT_SECRET": "REPLACE_WITH_OUTPUT_OF: node -e \"console.log(require('crypto').randomBytes(64).toString('hex'))\"",
+  "REDIS_URL": "redis://${{REDISUSER}}:${{REDIS_PASSWORD}}@${{REDISHOST}}:${{REDISPORT}}",
+  "CORS_ORIGIN": "*",
+  "NODE_ENV": "production"
+}

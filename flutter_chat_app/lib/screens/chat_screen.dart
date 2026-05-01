@@ -11,6 +11,7 @@ import '../widgets/chat_window.dart';
 import '../widgets/conversations_tab.dart';
 import '../widgets/discover_tab.dart';
 import '../widgets/profile_tab.dart';
+import '../services/chat_service.dart';
 
 /// Main chat screen — 3-tab bottom navigation architecture.
 class ChatScreen extends StatefulWidget {
@@ -20,13 +21,30 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   int _currentTab = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialize());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    ChatService.updatePresence(false);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ChatService.updatePresence(true);
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      ChatService.updatePresence(false);
+    }
   }
 
   Future<void> _initialize() async {
@@ -38,7 +56,8 @@ class _ChatScreenState extends State<ChatScreen> {
     await NotificationService().initialize();
 
     await chatProvider.loadConversations();
-    await socketProvider.connect();
+    await socketProvider.connect(); // Kept for future, but polling will do the heavy lifting
+    ChatService.updatePresence(true);
 
     // Start fallback polling — safety net in case WebSocket misses events
     chatProvider.startFallbackPolling();

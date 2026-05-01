@@ -8,6 +8,8 @@ const userSchema = new mongoose.Schema(
     email: { type: String, lowercase: true, trim: true },
     password: { type: String, select: false },
     refreshToken: { type: String },
+    isOnline: { type: Boolean, default: false },
+    lastActive: { type: Date, default: Date.now },
   },
   { timestamps: true }
 );

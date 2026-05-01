@@ -45,6 +45,7 @@ class ApiConfig {
   static const String users = '/api/users';
   static const String searchUsers = '/api/users/search';
   static const String findByCode = '/api/users/code';
+  static const String presence = '/api/users/presence';
 
   // ── Conversation Endpoints ──
   static const String conversations = '/api/conversations';

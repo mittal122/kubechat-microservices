@@ -14,7 +14,7 @@ const getAllUsers = async (req, res) => {
     const query = { _id: { $ne: req.user._id } };
 
     const users = await User.find(query)
-      .select("name email connectCode")
+      .select("name email connectCode isOnline lastActive")
       .skip(skip)
       .limit(limit);
 
@@ -112,7 +112,7 @@ const searchUsers = async (req, res) => {
         ],
       };
 
-      usersQuery = User.find(searchQuery).select("name email connectCode").sort({ name: 1 });
+      usersQuery = User.find(searchQuery).select("name email connectCode isOnline lastActive").sort({ name: 1 });
       total = await User.countDocuments(searchQuery);
     } else {
       const searchQuery = {
@@ -121,7 +121,7 @@ const searchUsers = async (req, res) => {
       };
 
       usersQuery = User.find(searchQuery, { score: { $meta: "textScore" } })
-        .select("name email connectCode")
+        .select("name email connectCode isOnline lastActive")
         .sort({ score: { $meta: "textScore" } });
       total = await User.countDocuments(searchQuery);
     }
@@ -146,4 +146,54 @@ const searchUsers = async (req, res) => {
   }
 };
 
-module.exports = { getAllUsers, searchUsers, findByCode };
+// Joi schema for presence
+const presenceSchema = Joi.object({
+  isOnline: Joi.boolean().required()
+});
+
+// @desc    Update user presence
+// @route   PUT /api/users/presence
+// @access  Private
+const updatePresence = async (req, res) => {
+  try {
+    const { error } = presenceSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    const { isOnline } = req.body;
+    
+    await User.findByIdAndUpdate(req.user._id, {
+      isOnline,
+      lastActive: Date.now()
+    });
+
+    res.status(200).json({ message: "Presence updated" });
+  } catch (error) {
+    console.error("UpdatePresence error:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// @desc    Get presence of specific users (for polling)
+// @route   POST /api/users/presence
+// @access  Private
+const getPresence = async (req, res) => {
+  try {
+    const { userIds } = req.body;
+    
+    if (!userIds || !Array.isArray(userIds)) {
+      return res.status(400).json({ message: "userIds array is required" });
+    }
+
+    const users = await User.find({ _id: { $in: userIds } })
+      .select("isOnline lastActive");
+
+    res.status(200).json(users);
+  } catch (error) {
+    console.error("GetPresence error:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+module.exports = { getAllUsers, searchUsers, findByCode, updatePresence, getPresence };

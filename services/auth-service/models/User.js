@@ -48,6 +48,14 @@ const userSchema = new mongoose.Schema(
     refreshToken: {
       type: String,
     },
+    isOnline: {
+      type: Boolean,
+      default: false,
+    },
+    lastActive: {
+      type: Date,
+      default: Date.now,
+    },
   },
   {
     timestamps: true,

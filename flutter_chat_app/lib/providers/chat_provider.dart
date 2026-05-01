@@ -12,6 +12,7 @@ class ChatProvider extends ChangeNotifier {
   bool _loadingMessages = false;
   String? _error;
   Timer? _pollTimer;
+  Map<String, bool> _presence = {};
 
   List<ConversationModel> get conversations => _conversations;
   ConversationModel? get activeConversation => _activeConversation;
@@ -23,6 +24,10 @@ class ChatProvider extends ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  bool isUserOnline(String userId) {
+    return _presence[userId] ?? false;
   }
 
   int get totalUnread =>
@@ -50,8 +55,33 @@ class ChatProvider extends ChangeNotifier {
   Future<void> _silentRefresh() async {
     try {
       final newConversations = await ChatService.getConversations();
+      
+      // Polling Presence
+      if (newConversations.isNotEmpty) {
+        final userIds = newConversations.map((c) => c.otherUser.id).toList();
+        final presenceMap = await ChatService.getPresence(userIds);
+        bool presenceChanged = false;
+        
+        for (var entry in presenceMap.entries) {
+          final userId = entry.key;
+          final isOnline = entry.value['isOnline'] as bool;
+          if (_presence[userId] != isOnline) {
+            _presence[userId] = isOnline;
+            presenceChanged = true;
+          }
+        }
+        if (presenceChanged) notifyListeners();
+      }
+
       // Check if conversations changed
       if (_conversationsChanged(newConversations)) {
+        // Mark delivered for any conversation with unread messages
+        for (var c in newConversations) {
+          if (c.unreadCount > 0 && c.id != _activeConversation?.id) {
+            ChatService.markMessagesDelivered(c.id!);
+          }
+        }
+
         _conversations = newConversations;
         notifyListeners();
         debugPrint('[ChatProvider] 🔄 Poll: conversations updated');
@@ -63,8 +93,10 @@ class ChatProvider extends ChangeNotifier {
           _activeConversation!.id != null) {
         final newMessages =
             await ChatService.getMessages(_activeConversation!.id!);
-        if (newMessages.length != _messages.length) {
+        if (_messagesChanged(newMessages)) {
           _messages = newMessages;
+          // Mark seen since we are actively looking at them
+          ChatService.markMessagesSeen(_activeConversation!.id!);
           notifyListeners();
           debugPrint(
               '[ChatProvider] 🔄 Poll: messages updated (${newMessages.length} msgs)');
@@ -74,6 +106,14 @@ class ChatProvider extends ChangeNotifier {
       // Silent — don't show errors for background polling
       debugPrint('[ChatProvider] Poll error: $e');
     }
+  }
+
+  bool _messagesChanged(List<MessageModel> newMessages) {
+    if (newMessages.length != _messages.length) return true;
+    for (int i = 0; i < newMessages.length; i++) {
+      if (newMessages[i].status != _messages[i].status) return true;
+    }
+    return false;
   }
 
   bool _conversationsChanged(List<ConversationModel> newList) {
