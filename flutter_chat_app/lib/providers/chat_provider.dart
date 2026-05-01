@@ -32,7 +32,9 @@ class ChatProvider extends ChangeNotifier {
   /// This is a safety net in case WebSocket events fail to deliver.
   void startFallbackPolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+    // 3-second fallback — messages appear within 3s even if socket fails.
+    // Socket.IO is the primary (instant) channel; this is the safety net.
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       _silentRefresh();
     });
   }
