@@ -40,33 +40,37 @@ class SocketService {
     required Function() onConnected,
     required Function() onDisconnected,
   }) async {
-    // Dispose any existing socket first to prevent duplication
-    if (_socket != null) {
-      _socket!.dispose();
-      _socket = null;
-    }
+    try {
+      // Dispose any existing socket first to prevent duplication
+      if (_socket != null) {
+        _socket!.dispose();
+        _socket = null;
+      }
 
-    final token = await StorageService.getAccessToken();
-    if (token == null) {
-      debugPrint('[Socket] No token — skipping connection');
-      return;
-    }
+      final token = await StorageService.getAccessToken();
+      if (token == null) {
+        debugPrint('[Socket] ⚠️ No token found — cannot connect');
+        return;
+      }
 
-    debugPrint('[Socket] Connecting to ${ApiConfig.socketUrl}');
+      debugPrint('[Socket] 🔄 Connecting to ${ApiConfig.socketUrl}');
+      debugPrint('[Socket] 🔑 Token preview: ${token.substring(0, token.length.clamp(0, 20))}...');
 
-    _socket = IO.io(
-      ApiConfig.socketUrl,
-      IO.OptionBuilder()
-          .setTransports(['polling', 'websocket'])
-          .setAuth({'token': token})
-          .disableAutoConnect()
-          .enableReconnection()
-          .setReconnectionDelay(1000)
-          .setReconnectionDelayMax(5000)
-          .setReconnectionAttempts(double.infinity.toInt())
-          .setExtraHeaders({'ngrok-skip-browser-warning': 'true'})
-          .build(),
-    );
+      // NOTE: Do NOT use double.infinity.toInt() — it throws UnsupportedError in Dart.
+      // Use a large finite number (999) which is effectively unlimited for reconnects.
+      _socket = IO.io(
+        ApiConfig.socketUrl,
+        IO.OptionBuilder()
+            .setTransports(['polling', 'websocket'])
+            .setAuth({'token': token})
+            .disableAutoConnect()
+            .enableReconnection()
+            .setReconnectionDelay(1000)
+            .setReconnectionDelayMax(5000)
+            .setReconnectionAttempts(999) // FIX: was double.infinity.toInt() → throws!
+            .setExtraHeaders({'ngrok-skip-browser-warning': 'true'})
+            .build(),
+      );
 
     _socket!.onConnect((_) {
       debugPrint('[Socket] ✅ Connected (id: ${_socket!.id})');
@@ -139,6 +143,11 @@ class SocketService {
     });
 
     _socket!.connect();
+    } catch (e, stack) {
+      debugPrint('[Socket] ❌ FATAL: Socket creation failed: $e');
+      debugPrint('[Socket] Stack: $stack');
+      _socket = null;
+    }
   }
 
   /// Disconnect the socket.
