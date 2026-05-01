@@ -65,10 +65,20 @@ const initSocket = (server) => {
   // ── Strict Security Authentication Middleware ──
   io.use((socket, next) => {
     const token = socket.handshake.auth.token || socket.handshake.query.token;
-    if (!token) return next(new Error("Authentication Error: Token missing"));
+    const origin = socket.handshake.headers.origin || socket.handshake.address;
+    console.log(`🔐 Socket auth attempt from ${origin} — token: ${token ? token.substring(0, 20) + '...' : 'MISSING'}`);
+
+    if (!token) {
+      console.error(`❌ Socket rejected: token missing (from ${origin})`);
+      return next(new Error("Authentication Error: Token missing"));
+    }
 
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-      if (err) return next(new Error("Authentication Error: Invalid or expired token"));
+      if (err) {
+        console.error(`❌ Socket rejected: JWT error — ${err.message} (from ${origin})`);
+        return next(new Error("Authentication Error: Invalid or expired token"));
+      }
+      console.log(`✅ Socket auth passed for userId: ${decoded.userId}`);
       socket.userId = decoded.userId;
       next();
     });
