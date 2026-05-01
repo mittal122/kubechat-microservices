@@ -243,13 +243,22 @@ class ProfileTab extends StatelessWidget {
           ),
           TextButton(
             onPressed: () async {
-              Navigator.of(ctx).pop();
+              Navigator.of(ctx).pop(); // close dialog
               final auth = context.read<AuthProvider>();
               final socket = context.read<SocketProvider>();
               final chat = context.read<ChatProvider>();
+              // Disconnect socket and clear state FIRST
               socket.disconnect();
               chat.clearChat();
-              await auth.logout();
+              await auth.logout(); // clears tokens + _user = null
+              // Force navigate to login — don't rely on AuthGate rebuild
+              // because context can be stale after dialog close
+              if (ctx.mounted) {
+                Navigator.of(ctx).pushNamedAndRemoveUntil(
+                  '/login',
+                  (route) => false, // remove ALL routes from stack
+                );
+              }
             },
             child: Text('Sign out',
                 style: AppTheme.bodySmall.copyWith(

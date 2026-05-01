@@ -66,11 +66,17 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Logout the current user.
+  /// Logout the current user — always clears local state even if API fails.
   Future<void> logout() async {
-    await AuthService.logout();
-    _user = null;
-    notifyListeners();
+    try {
+      await AuthService.logout();
+    } catch (e) {
+      debugPrint('Logout API error (ignored): $e');
+    } finally {
+      await StorageService.clearTokens();
+      _user = null;
+      notifyListeners();
+    }
   }
 
   /// Force logout (called by API interceptor when refresh fails).
