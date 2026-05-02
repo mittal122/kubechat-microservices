@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # ── API Gateway Metrics ──
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:5000']
+
+  # ── Auth Service Metrics ──
+  - job_name: 'auth-service'
+    static_configs:
+      - targets: ['auth-service:5001']
+
+  # ── User Service Metrics ──
+  - job_name: 'user-service'
+    static_configs:
+      - targets: ['user-service:5002']
+
+  # ── Chat Service Metrics ──
+  - job_name: 'chat-service'
+    static_configs:
+      - targets: ['chat-service:5003']
+
+  # ── Prometheus Self-Monitoring ──
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
