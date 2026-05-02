@@ -5,6 +5,7 @@ import '../config/app_theme.dart';
 import '../models/conversation_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/socket_provider.dart';
+import '../screens/create_group_screen.dart';
 
 /// Full-screen conversations tab — replaces the old floating overlay.
 class ConversationsTab extends StatelessWidget {
@@ -62,6 +63,40 @@ class ConversationsTab extends StatelessWidget {
                   'Chats',
                   style: AppTheme.headingLarge.copyWith(fontSize: 26),
                 ),
+                const Spacer(),
+                // New Group Button
+                GestureDetector(
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const CreateGroupScreen(),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withAlpha(20),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                      border: Border.all(color: AppTheme.primary.withAlpha(60)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.group_add_rounded,
+                            size: 16, color: AppTheme.primary),
+                        const SizedBox(width: 4),
+                        Text(
+                          'New Group',
+                          style: AppTheme.labelSmall.copyWith(
+                            color: AppTheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -97,8 +132,9 @@ class ConversationsTab extends StatelessWidget {
     ConversationModel conv,
     ChatProvider chatProvider,
   ) {
-    final isOnline =
-        context.watch<SocketProvider>().isUserOnline(conv.otherUser.id);
+    final isOnline = conv.isGroup
+        ? false // groups don't have online status
+        : context.watch<SocketProvider>().isUserOnline(conv.otherUser.id);
     final isActive = chatProvider.activeConversation?.id == conv.id;
 
     return GestureDetector(

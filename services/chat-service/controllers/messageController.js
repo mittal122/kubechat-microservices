@@ -9,7 +9,7 @@ const { messagesSentTotal } = require("../config/metrics");
 // @access  Private
 const sendMessage = async (req, res) => {
   try {
-    const { text } = req.body;
+    const { text, conversationId } = req.body;
     const { receiverId } = req.params;
     const senderId = req.user._id;
 
@@ -17,27 +17,78 @@ const sendMessage = async (req, res) => {
       return res.status(400).json({ message: "Text content is required" });
     }
 
-    if (senderId.toString() === receiverId) {
-      return res.status(400).json({ message: "You cannot message yourself" });
-    }
+    let conversation;
+    let isGroupMessage = false;
 
-    const receiverExists = await User.findById(receiverId);
-    if (!receiverExists) {
-      return res.status(404).json({ message: "Receiver not found" });
-    }
-
-    let conversation = await Conversation.findOne({
-      participants: { $all: [senderId, receiverId] },
-    });
-
-    if (!conversation) {
-      conversation = await Conversation.create({
-        participants: [senderId, receiverId],
-        lastMessage: text,
+    // Check if sending to a group (receiverId is actually a conversationId)
+    if (conversationId) {
+      conversation = await Conversation.findById(conversationId)
+        .populate("participants", "name");
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      isGroupMessage = conversation.isGroup;
+    } else {
+      // 1-to-1 message
+      if (senderId.toString() === receiverId) {
+        return res.status(400).json({ message: "You cannot message yourself" });
+      }
+      const receiverExists = await User.findById(receiverId);
+      if (!receiverExists) {
+        return res.status(404).json({ message: "Receiver not found" });
+      }
+      conversation = await Conversation.findOne({
+        participants: { $all: [senderId, receiverId] },
+        isGroup: false,
       });
+      if (!conversation) {
+        conversation = await Conversation.create({
+          participants: [senderId, receiverId],
+          lastMessage: text,
+        });
+      }
     }
 
     const io = getIO();
+    const senderName = req.user.name;
+
+    if (isGroupMessage) {
+      // Group message — no single receiverId, send to all participants except sender
+      const message = await Message.create({
+        conversationId: conversation._id,
+        senderId,
+        receiverId: senderId, // placeholder for group messages
+        text,
+        status: "delivered",
+        isSeen: false,
+        isGroup: true,
+      });
+
+      conversation.lastMessage = text;
+      conversation.lastMessageAt = Date.now();
+      await conversation.save();
+
+      const messageJSON = message.toJSON();
+
+      // Broadcast to ALL group members (except sender)
+      if (io) {
+        conversation.participants.forEach((participant) => {
+          if (participant._id.toString() !== senderId.toString()) {
+            const socketIds = getReceiverSocketIds(participant._id.toString());
+            if (socketIds && socketIds.length > 0) {
+              socketIds.forEach((sid) => io.to(sid).emit("newMessage", messageJSON));
+            }
+          }
+        });
+      }
+
+      console.log(`👥 [GROUP MSG] "${senderName}" → "${conversation.groupName}": "${text.substring(0, 60)}"`);
+      messagesSentTotal.inc({ status: "success" });
+      return res.status(201).json(message);
+    }
+
+    // 1-to-1 message
+    const receiverUser = await User.findById(receiverId);
     const receiverSocketIds = getReceiverSocketIds(receiverId);
     const isReceiverOnline = receiverSocketIds && receiverSocketIds.length > 0;
 
@@ -56,36 +107,18 @@ const sendMessage = async (req, res) => {
       await conversation.save();
     }
 
-    // ══════════════════════════════════════════════════════════
-    // CRITICAL: Must call .toJSON() before emitting via Socket.IO!
-    // 
-    // res.json(message) → calls Mongoose toJSON() → ObjectIds become strings ✅
-    // io.emit("newMessage", message) → raw Mongoose doc → ObjectIds are OBJECTS ❌
-    //
-    // Without .toJSON(), the Flutter client receives:
-    //   { "_id": {"$oid": "..."}, "senderId": {"$oid": "..."} }
-    // Instead of:
-    //   { "_id": "664f...", "senderId": "664f..." }
-    //
-    // This causes MessageModel.fromJson() to crash on `json['_id'] as String`
-    // and the message is silently dropped.
-    // ══════════════════════════════════════════════════════════
     const messageJSON = message.toJSON();
 
-    const senderName = req.user.name;
-    const receiverName = receiverExists.name;
-
     if (isReceiverOnline && io) {
-      console.log(`📤 [MESSAGE SENT] "${senderName}" → "${receiverName}": "${text.substring(0, 60)}${text.length > 60 ? '...' : ''}"  (delivered in real-time)`);
+      console.log(`📤 [MESSAGE SENT] "${senderName}" → "${receiverUser?.name}": "${text.substring(0, 60)}${text.length > 60 ? '...' : ''}"  (delivered in real-time)`);
       receiverSocketIds.forEach((socketId) => {
         io.to(socketId).emit("newMessage", messageJSON);
       });
     } else {
-      console.log(`📬 [MESSAGE STORED] "${senderName}" → "${receiverName}": "${text.substring(0, 60)}" (receiver offline, queued)`);
+      console.log(`📬 [MESSAGE STORED] "${senderName}" → "${receiverUser?.name}": "${text.substring(0, 60)}" (receiver offline, queued)`);
     }
 
     messagesSentTotal.inc({ status: "success" });
-
     res.status(201).json(message);
   } catch (error) {
     console.error(`❌ [MESSAGE ERROR] ${error.message}`);

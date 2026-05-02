@@ -19,7 +19,17 @@ class UserModel {
     return UserModel(
       id: json['_id'] as String,
       name: json['name'] as String,
-      email: json['email'] as String,
+      email: json['email'] as String? ?? '',
+      connectCode: json['connectCode'] as String?,
+      createdAt: json['createdAt'] as String?,
+    );
+  }
+
+  factory UserModel.fromGroupOrUser(Map<String, dynamic> json) {
+    return UserModel(
+      id: (json['_id'] ?? '').toString(),
+      name: json['name'] as String? ?? 'Group',
+      email: json['email'] as String? ?? '',
       connectCode: json['connectCode'] as String?,
       createdAt: json['createdAt'] as String?,
     );

@@ -52,6 +52,24 @@ class ChatService {
     await _dio.put('${ApiConfig.messages}/$conversationId/delivered');
   }
 
+  /// Create a new group conversation.
+  static Future<ConversationModel> createGroup({
+    required String groupName,
+    required List<String> memberIds,
+  }) async {
+    final response = await _dio.post(
+      '${ApiConfig.conversations}/group',
+      data: {'groupName': groupName, 'memberIds': memberIds},
+    );
+    return ConversationModel.fromJson(response.data);
+  }
+
+  /// Get group details (members list).
+  static Future<Map<String, dynamic>> getGroupDetails(String groupId) async {
+    final response = await _dio.get('${ApiConfig.conversations}/group/$groupId');
+    return response.data;
+  }
+
   /// Update own presence (online/offline).
   static Future<void> updatePresence(bool isOnline) async {
     try {
