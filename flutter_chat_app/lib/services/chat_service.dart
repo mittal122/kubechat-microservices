@@ -32,12 +32,25 @@ class ChatService {
         .toList();
   }
 
-  /// Send a message to a receiver.
+  /// Send a message to a 1-to-1 receiver.
   static Future<MessageModel> sendMessage(
       String receiverId, String text) async {
     final response = await _dio.post(
       '${ApiConfig.messages}/$receiverId',
       data: {'text': text},
+    );
+    return MessageModel.fromJson(response.data);
+  }
+
+  /// Send a message to a group conversation.
+  static Future<MessageModel> sendGroupMessage({
+    required String conversationId,
+    required String text,
+  }) async {
+    // Use 'group' as a placeholder receiverId — backend uses conversationId from body
+    final response = await _dio.post(
+      '${ApiConfig.messages}/group',
+      data: {'text': text, 'conversationId': conversationId},
     );
     return MessageModel.fromJson(response.data);
   }

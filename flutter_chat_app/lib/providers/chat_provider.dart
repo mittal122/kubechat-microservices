@@ -169,27 +169,39 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
-  /// Send a message.
+  /// Send a message (handles both 1-to-1 and group chats).
   Future<void> sendMessage(String receiverId, String text) async {
     try {
-      final message = await ChatService.sendMessage(receiverId, text);
+      final isGroup = _activeConversation?.isGroup == true;
+      final conversationId = _activeConversation?.id;
+
+      MessageModel message;
+
+      if (isGroup && conversationId != null) {
+        // Group message — pass conversationId in body, receiverId is irrelevant
+        message = await ChatService.sendGroupMessage(
+          conversationId: conversationId,
+          text: text,
+        );
+      } else {
+        // 1-to-1 message
+        message = await ChatService.sendMessage(receiverId, text);
+      }
 
       // Add to messages if not already there
       if (!_messages.any((m) => m.id == message.id)) {
         _messages.add(message);
       }
 
-      // If this was a new conversation, reload conversations
+      // If this was a new 1-to-1 conversation, reload conversations
       if (_activeConversation?.isNew == true) {
         await loadConversations();
-        // Find the newly created conversation
         final newConv = _conversations.firstWhere(
           (c) => c.otherUser.id == receiverId,
           orElse: () => _activeConversation!,
         );
         _activeConversation = newConv;
       } else {
-        // Update conversation preview
         _updateConversationPreview(message);
       }
 
