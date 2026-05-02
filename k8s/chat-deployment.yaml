@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chat-service
+  template:
+    metadata:
+      labels:
+        app: chat-service
+    spec:
+      containers:
+      - name: chat-service
+        image: mittal122/kubechat-chat:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5003
+        envFrom:
+        - secretRef:
+            name: kubechat-secrets
+---
+# LoadBalancer creates a direct port mapping on the EC2 instance for port 5003 (Socket.IO)
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: chat-service
+  ports:
+    - protocol: TCP
+      port: 5003
+      targetPort: 5003
