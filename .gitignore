@@ -28,3 +28,6 @@ report/
 "cicd piple walkthroug.txt"
 SESSION_HANDOFF.md
 implementation_plan.md
+
+# Local secrets
+.env

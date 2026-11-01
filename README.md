@@ -58,3 +58,7 @@ flowchart TD
 - Real-time Socket.IO communication
 - Frontend chat workspace and UX
 - Dockerized deployment and CI/CD automation
+
+## Environment
+
+Copy each `services/*/.env.example` to `.env` before running a service outside Docker, and set your own `JWT_SECRET`.
